@@ -209,6 +209,7 @@ namespace ServiceStack
 
         public static void AssertValidUsage(LicenseFeature feature, QuotaType quotaType, int count)
         {
+            return;
             var licensedFeatures = ActivatedLicenseFeatures();
             if ((LicenseFeature.All & licensedFeatures) == LicenseFeature.All) //Standard Usage
                 return;
