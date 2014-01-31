@@ -36,7 +36,7 @@ namespace ServiceStack.Text.Jsv
                 if (WriteFnCache.TryGetValue(type, out writeFn)) return writeFn;
 
                 var genericType = typeof(JsvWriter<>).MakeGenericType(type);
-                var mi = genericType.GetPublicStaticMethod("WriteFn");
+                var mi = genericType.GetStaticMethod("WriteFn");
                 var writeFactoryFn = (Func<WriteObjectDelegate>)mi.MakeDelegate(typeof(Func<WriteObjectDelegate>));
 
                 writeFn = writeFactoryFn();
@@ -127,7 +127,7 @@ namespace ServiceStack.Text.Jsv
 
         public static void WriteObject(TextWriter writer, object value)
         {
-#if MONOTOUCH
+#if __IOS__
 			if (writer == null) return;
 #endif
             TypeConfig<T>.AssertValidUsage();
@@ -151,7 +151,7 @@ namespace ServiceStack.Text.Jsv
 
         public static void WriteRootObject(TextWriter writer, object value)
         {
-#if MONOTOUCH
+#if __IOS__
 			if (writer == null) return;
 #endif
             try

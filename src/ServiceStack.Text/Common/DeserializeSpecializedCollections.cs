@@ -1,11 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-#if !NETFX_CORE
-using System.Collections.Specialized;
-#endif
-using System.Linq;
-using System.Reflection;
 
 namespace ServiceStack.Text.Common
 {
@@ -48,12 +43,10 @@ namespace ServiceStack.Text.Common
                 return GetGenericStackParseFn();
             }
 
-#if !SILVERLIGHT
-            if (typeof(T) == typeof(StringCollection))
-            {
-                return ParseStringCollection<TSerializer>;
-            }
-#endif
+            var fn = PclExport.Instance.GetSpecializedCollectionParseMethod<TSerializer>(typeof(T));
+            if (fn != null)
+                return fn;
+
             if (typeof (T) == typeof (IEnumerable) || typeof(T) == typeof(ICollection))
             {
                 return GetEnumerableParseFn();
@@ -74,32 +67,12 @@ namespace ServiceStack.Text.Common
             return new Queue<int>(parse);
         }
 
-#if !SILVERLIGHT
-        public static StringCollection ParseStringCollection<TS>(string value) where TS : ITypeSerializer
-        {
-            if ((value = DeserializeListWithElements<TS>.StripList(value)) == null) return null;
-            return value == String.Empty
-                   ? new StringCollection()
-                   : ToStringCollection(DeserializeListWithElements<TSerializer>.ParseStringList(value));
-        }
-
-        public static StringCollection ToStringCollection(List<string> items)
-        {
-            var to = new StringCollection();
-            foreach (var item in items)
-            {
-                to.Add(item);
-            }
-            return to;
-        }
-#endif
-
         internal static ParseStringDelegate GetGenericQueueParseFn()
         {
             var enumerableInterface = typeof(T).GetTypeWithGenericInterfaceOf(typeof(IEnumerable<>));
             var elementType = enumerableInterface.GenericTypeArguments()[0];
             var genericType = typeof(SpecializedQueueElements<>).MakeGenericType(elementType);
-            var mi = genericType.GetPublicStaticMethod("ConvertToQueue");
+            var mi = genericType.GetStaticMethod("ConvertToQueue");
             var convertToQueue = (ConvertObjectDelegate)mi.MakeDelegate(typeof(ConvertObjectDelegate));
 
             var parseFn = DeserializeEnumerable<T, TSerializer>.GetParseFn();
@@ -125,7 +98,7 @@ namespace ServiceStack.Text.Common
             
             var elementType = enumerableInterface.GenericTypeArguments()[0];
             var genericType = typeof(SpecializedQueueElements<>).MakeGenericType(elementType);
-            var mi = genericType.GetPublicStaticMethod("ConvertToStack");
+            var mi = genericType.GetStaticMethod("ConvertToStack");
             var convertToQueue = (ConvertObjectDelegate)mi.MakeDelegate(typeof(ConvertObjectDelegate));
 
             var parseFn = DeserializeEnumerable<T, TSerializer>.GetParseFn();

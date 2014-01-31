@@ -42,7 +42,7 @@ namespace ServiceStack
                 if (WriteFnCache.TryGetValue(type, out writeFn)) return writeFn;
 
                 var genericType = typeof(QueryStringWriter<>).MakeGenericType(type);
-                var mi = genericType.GetPublicStaticMethod("WriteFn");
+                var mi = genericType.GetStaticMethod("WriteFn");
                 var writeFactoryFn = (Func<WriteObjectDelegate>)mi.MakeDelegate(
                     typeof(Func<WriteObjectDelegate>));
 
@@ -224,7 +224,7 @@ namespace ServiceStack
             var typeConfig = typeConfigCache.GetOrAdd(obj.GetType(), t =>
                 {
                     var genericType = typeof (PropertyTypeConfig<>).MakeGenericType(t);
-                    var fi = genericType.GetFields().First(x => x.Name == "Config");;
+                    var fi = genericType.Fields().First(x => x.Name == "Config");;
 
                     var config = (PropertyTypeConfig)fi.GetValue(null);
                     return config;

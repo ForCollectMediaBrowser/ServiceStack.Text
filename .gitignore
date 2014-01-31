@@ -44,6 +44,7 @@ App_Data/
 *.user
 
 NuGet/
+NuGet.Pcl/
 NuGet.Signed/
 *.pfx
 
@@ -52,3 +53,4 @@ _NCrunch*/
 *.ncrunchproject
 *.ncrunchsolution
 *.xml
+*.xap

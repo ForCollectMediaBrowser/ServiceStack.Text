@@ -20,7 +20,7 @@ using ServiceStack.Text.Json;
 
 namespace ServiceStack.Text.Common
 {
-    internal static class DeserializeListWithElements<TSerializer>
+    public static class DeserializeListWithElements<TSerializer>
         where TSerializer : ITypeSerializer
     {
         internal static readonly ITypeSerializer Serializer = JsWriter.GetTypeSerializer<TSerializer>();
@@ -38,7 +38,7 @@ namespace ServiceStack.Text.Common
                 return parseDelegate.Invoke;
 
             var genericType = typeof(DeserializeListWithElements<,>).MakeGenericType(elementType, typeof(TSerializer));
-            var mi = genericType.GetPublicStaticMethod("ParseGenericList");
+            var mi = genericType.GetStaticMethod("ParseGenericList");
             parseDelegate = (ParseListDelegate)mi.MakeDelegate(typeof(ParseListDelegate));
 
             Dictionary<Type, ParseListDelegate> snapshot, newCache;
@@ -54,7 +54,7 @@ namespace ServiceStack.Text.Common
             return parseDelegate.Invoke;
         }
 
-        internal static string StripList(string value)
+        public static string StripList(string value)
         {
             if (string.IsNullOrEmpty(value))
                 return null;
@@ -187,7 +187,7 @@ namespace ServiceStack.Text.Common
         }
     }
 
-    internal static class DeserializeList<T, TSerializer>
+    public static class DeserializeList<T, TSerializer>
         where TSerializer : ITypeSerializer
     {
         private readonly static ParseStringDelegate CacheFn;

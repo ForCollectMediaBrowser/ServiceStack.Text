@@ -4,7 +4,6 @@
 using System;
 using System.Collections;
 using NUnit.Framework;
-using ServiceStack.Configuration;
 
 namespace ServiceStack.Text.Tests
 {
@@ -33,6 +32,8 @@ namespace ServiceStack.Text.Tests
         readonly LicenseKey TestBusiness2013 = new LicenseKey { Ref = "1001", Name = "Test Business", Type = LicenseType.Business, Expiry = new DateTime(2013, 01, 01) };
         const string TestIndie2013Text = "1001-e1JlZjoxMDAxLE5hbWU6VGVzdCBJbmRpZSxUeXBlOkluZGllLEhhc2g6UGJyTWlRL205YkpCN3NoUGFBelZKVkppZERHRjQwK2JiVWpvOWtrLzgrTUF3UmZZOE0rUkNHMTRYZ055S2ZFT29aNDY4c0FXS2dLRGlVZzEvVmViNjN5M2FpNTh5T2JTZ3RIL2tEdzhDL1VFOEZrazRhMEMrdEtNVU4xQlFxVHBEU21HQUZESUxuOHQ1M2lFWE9tK014MWZCNFEvbitFQUJTMVhvbjBlUE1zPSxFeHBpcnk6MjAxNC0wMS0wMX0=";
         readonly LicenseKey TestIndie2013 = new LicenseKey { Ref = "1001", Name = "Test Indie", Type = LicenseType.Indie, Expiry = new DateTime(2014, 01, 01) };
+        const string TestText2013Text = "1001-e1JlZjoxMDAxLE5hbWU6VGVzdCBUZXh0LFR5cGU6VGV4dCxIYXNoOkppVjBGdmxMcmRxa3hsN3BiZGFmK3BTc1BHak53QS9Ha245ejJ6dklOUkIwZGpOS2xXNzl0WTdZWWhLN1NRYk1WMXNyOUVyUE1DRGZzVXZ6N2tlcGl6ZzF0QkZ4eXNPb3NFUlJkdzZUM05uY1ZKRW1JTzFSSlpEOC85R2FsakZRQzJIYXFHMTl4ejF6V0NiNzFCM05BbzZOS0tLMW9Rc3QzZitENzI2YXgwST0sRXhwaXJ5OjIwMTMtMDEtMDF9";
+        readonly LicenseKey TestText2013 = new LicenseKey { Ref = "1001", Name = "Test Text", Type = LicenseType.Text, Expiry = new DateTime(2013, 01, 01) };
 
         public IEnumerable AllLicenseUseCases
         {
@@ -77,6 +78,24 @@ namespace ServiceStack.Text.Tests
         }
 
         [Test, Explicit("Licenses are expired")]
+        public void Can_register_Text_License()
+        {
+            Licensing.RegisterLicense(TestText2013Text);
+
+            var licensedFeatures = LicenseUtils.ActivatedLicenseFeatures();
+
+            Assert.That(licensedFeatures, Is.EqualTo(LicenseFeature.Text));
+
+            Assert.Throws<LicenseException>(() =>
+                LicenseUtils.ApprovedUsage(LicenseFeature.None, LicenseFeature.Text, 1, 2, "Failed"));
+
+            Assert.Throws<LicenseException>(() =>
+                LicenseUtils.ApprovedUsage(LicenseFeature.OrmLite, LicenseFeature.Text, 1, 2, "Failed"));
+
+            LicenseUtils.ApprovedUsage(LicenseFeature.Text, LicenseFeature.Text, 1, 2, "Failed");
+        }
+
+        [Test, Explicit("Licenses are expired")]
         public void Can_register_valid_licenses()
         {
             Licensing.RegisterLicense(TestBusiness2013Text);
@@ -89,7 +108,11 @@ namespace ServiceStack.Text.Tests
         [Test]
         public void Can_register_valid_license()
         {
-            Licensing.RegisterLicense(new AppSettings().GetString("servicestack:license"));
+#if !SL5
+            Licensing.RegisterLicense(new ServiceStack.Configuration.AppSettings().GetString("servicestack:license"));
+#else
+            Licensing.RegisterLicense("1001-e1JlZjoxMDAxLE5hbWU6VGVzdCBCdXNpbmVzcyxUeXBlOkJ1c2luZXNzLEhhc2g6UHVNTVRPclhvT2ZIbjQ5MG5LZE1mUTd5RUMzQnBucTFEbTE3TDczVEF4QUNMT1FhNXJMOWkzVjFGL2ZkVTE3Q2pDNENqTkQyUktRWmhvUVBhYTBiekJGUUZ3ZE5aZHFDYm9hL3lydGlwUHI5K1JsaTBYbzNsUC85cjVJNHE5QVhldDN6QkE4aTlvdldrdTgyTk1relY2eis2dFFqTThYN2lmc0JveHgycFdjPSxFeHBpcnk6MjAxMy0wMS0wMX0=");
+#endif
             Assert.That(LicenseUtils.ActivatedLicenseFeatures(), Is.EqualTo(LicenseFeature.Business));
         }
 

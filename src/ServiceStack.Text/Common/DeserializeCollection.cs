@@ -15,9 +15,6 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Threading;
 using System.Linq;
-#if WINDOWS_PHONE && !WP8
-using ServiceStack.Text.WP;
-#endif
 
 namespace ServiceStack.Text.Common
 {
@@ -83,7 +80,7 @@ namespace ServiceStack.Text.Common
             if (ParseDelegateCache.TryGetValue(elementType, out parseDelegate))
                 return parseDelegate(value, createType, parseFn);
 
-            var mi = typeof(DeserializeCollection<TSerializer>).GetPublicStaticMethod("ParseCollection");
+            var mi = typeof(DeserializeCollection<TSerializer>).GetStaticMethod("ParseCollection");
             var genericMi = mi.MakeGenericMethod(new[] { elementType });
             parseDelegate = (ParseCollectionDelegate)genericMi.MakeDelegate(typeof(ParseCollectionDelegate));
 

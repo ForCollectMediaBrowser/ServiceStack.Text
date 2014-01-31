@@ -36,7 +36,7 @@ namespace ServiceStack.Text.Json
 				if (WriteFnCache.TryGetValue(type, out writeFn)) return writeFn;
 
 				var genericType = typeof(JsonWriter<>).MakeGenericType(type);
-                var mi = genericType.GetPublicStaticMethod("WriteFn");
+                var mi = genericType.GetStaticMethod("WriteFn");
                 var writeFactoryFn = (Func<WriteObjectDelegate>)mi.MakeDelegate(typeof(Func<WriteObjectDelegate>));
                 writeFn = writeFactoryFn();
 
@@ -69,7 +69,7 @@ namespace ServiceStack.Text.Json
 				if (JsonTypeInfoCache.TryGetValue(type, out writeFn)) return writeFn;
 
 				var genericType = typeof(JsonWriter<>).MakeGenericType(type);
-                var mi = genericType.GetPublicStaticMethod("GetTypeInfo");
+                var mi = genericType.GetStaticMethod("GetTypeInfo");
                 var writeFactoryFn = (Func<TypeInfo>)mi.MakeDelegate(typeof(Func<TypeInfo>));
                 writeFn = writeFactoryFn();
 
@@ -131,7 +131,7 @@ namespace ServiceStack.Text.Json
 		}
 	}
 
-	internal class TypeInfo
+    public class TypeInfo
 	{
         internal bool EncodeMapKey;
         internal bool IsNumeric;
@@ -180,7 +180,7 @@ namespace ServiceStack.Text.Json
 
         public static void WriteObject(TextWriter writer, object value)
         {
-#if MONOTOUCH
+#if __IOS__
 			if (writer == null) return;
 #endif
             TypeConfig<T>.AssertValidUsage();
@@ -204,7 +204,7 @@ namespace ServiceStack.Text.Json
 
         public static void WriteRootObject(TextWriter writer, object value)
         {
-#if MONOTOUCH
+#if __IOS__
 			if (writer == null) return;
 #endif
             TypeConfig<T>.AssertValidUsage();
