@@ -20,7 +20,7 @@ using System.Linq;
 
 namespace ServiceStack.Text.Common
 {
-    internal static class WriteListsOfElements<TSerializer>
+    public static class WriteListsOfElements<TSerializer>
         where TSerializer : ITypeSerializer
     {
         private static readonly ITypeSerializer Serializer = JsWriter.GetTypeSerializer<TSerializer>();
@@ -193,7 +193,7 @@ namespace ServiceStack.Text.Common
         }
     }
 
-    internal static class WriteListsOfElements<T, TSerializer>
+    public static class WriteListsOfElements<T, TSerializer>
         where TSerializer : ITypeSerializer
     {
         private static readonly WriteObjectDelegate ElementWriteFn;

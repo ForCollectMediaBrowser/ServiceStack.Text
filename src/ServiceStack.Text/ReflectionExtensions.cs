@@ -216,6 +216,11 @@ namespace ServiceStack
             return true;
         }
 
+        public static bool IsNullableType(this Type type)
+        {
+            return type.IsGenericType() && type.GetGenericTypeDefinition() == typeof(Nullable<>);
+        }
+
         public static TypeCode GetUnderlyingTypeCode(this Type type)
         {
             return GetTypeCode(Nullable.GetUnderlyingType(type) ?? type);
@@ -246,7 +251,7 @@ namespace ServiceStack
                     return true;
 
                 case TypeCode.Object:
-                    if (type.IsGenericType() && type.GetGenericTypeDefinition() == typeof(Nullable<>))
+                    if (type.IsNullableType())
                     {
                         return IsNumericType(Nullable.GetUnderlyingType(type));
                     }
@@ -276,7 +281,7 @@ namespace ServiceStack
                     return true;
 
                 case TypeCode.Object:
-                    if (type.IsGenericType() && type.GetGenericTypeDefinition() == typeof(Nullable<>))
+                    if (type.IsNullableType())
                     {
                         return IsNumericType(Nullable.GetUnderlyingType(type));
                     }
@@ -297,7 +302,7 @@ namespace ServiceStack
                     return true;
 
                 case TypeCode.Object:
-                    if (type.IsGenericType() && type.GetGenericTypeDefinition() == typeof(Nullable<>))
+                    if (type.IsNullableType())
                     {
                         return IsNumericType(Nullable.GetUnderlyingType(type));
                     }
@@ -651,8 +656,12 @@ namespace ServiceStack
         {
             if (type.IsDto())
             {
-                return new FieldInfo[0];
+                return type.GetAllFields().Where(attr =>
+                    attr.HasAttribute<DataMemberAttribute>()).ToArray();
             }
+
+            if (!JsConfig.IncludePublicFields)
+                return new FieldInfo[0];
 
             var publicFields = type.GetPublicFields();
 
@@ -842,6 +851,20 @@ namespace ServiceStack
             return type.GetRuntimeProperties().ToArray();
 #else
             return type.GetProperties();
+#endif
+        }
+
+        public static FieldInfo[] GetAllFields(this Type type)
+        {
+            if (type.IsInterface())
+            {
+                return new FieldInfo[0];
+            }
+
+#if (NETFX_CORE || PCL)
+            return type.GetRuntimeFields().ToArray();
+#else
+            return type.GetPublicFields();
 #endif
         }
 

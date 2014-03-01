@@ -2,6 +2,7 @@
 // License: https://raw.github.com/ServiceStack/ServiceStack/master/license.txt
 
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Linq;
@@ -19,6 +20,24 @@ namespace ServiceStack
     {
         public static T ConvertTo<T>(this object from)
         {
+            if (from.GetType() == typeof(T))
+            {
+                return (T)from;
+            }
+
+            if (from.GetType().IsValueType())
+            {
+                return (T)Convert.ChangeType(from, typeof(T), provider:null);
+            }
+
+            if (typeof(IEnumerable).IsAssignableFromType(typeof(T)))
+            {
+                var listResult = TranslateListWithElements.TryTranslateCollections(
+                    from.GetType(), typeof(T), from);
+
+                return (T)listResult;
+            }
+
             var to = typeof(T).CreateInstance<T>();
             return to.PopulateWith(from);
         }
@@ -99,7 +118,7 @@ namespace ServiceStack
             }
             return obj;
         }
-        
+
         private static Dictionary<Type, object> DefaultValueTypes = new Dictionary<Type, object>();
 
         public static object GetDefaultValue(this Type type)
@@ -129,7 +148,7 @@ namespace ServiceStack
 
         internal static AssignmentDefinition GetAssignmentDefinition(Type toType, Type fromType)
         {
-            var cacheKey = toType.FullName + "<" + fromType.FullName;
+            var cacheKey = CreateCacheKey(fromType, toType);
 
             return AssignmentDefinitionCache.GetOrAdd(cacheKey, delegate
             {
@@ -154,6 +173,12 @@ namespace ServiceStack
 
                 return definition;
             });
+        }
+
+        internal static string CreateCacheKey(Type fromType, Type toType)
+        {
+            var cacheKey = fromType.FullName + ">" + toType.FullName;
+            return cacheKey;
         }
 
         private static Dictionary<string, AssignmentMember> GetMembers(Type type, bool isReadable)
@@ -479,6 +504,7 @@ namespace ServiceStack
         public AssignmentMember To;
         public PropertyGetterDelegate GetValueFn;
         public PropertySetterDelegate SetValueFn;
+        public PropertyGetterDelegate ConvertValueFn;
 
         public AssignmentEntry(string name, AssignmentMember @from, AssignmentMember to)
         {
@@ -488,6 +514,7 @@ namespace ServiceStack
 
             GetValueFn = From.GetGetValueFn();
             SetValueFn = To.GetSetValueFn();
+            ConvertValueFn = TypeConverter.CreateTypeConverter(From.Type, To.Type);
         }
     }
 
@@ -521,7 +548,7 @@ namespace ServiceStack
             if (PropertyInfo != null)
                 return PropertyInfo.GetPropertyGetterFn();
             if (FieldInfo != null)
-                return o => FieldInfo.GetValue(o);
+                return FieldInfo.GetFieldGetterFn();
             if (MethodInfo != null)
                 return (PropertyGetterDelegate)
                     MethodInfo.CreateDelegate(typeof(PropertyGetterDelegate));
@@ -534,7 +561,7 @@ namespace ServiceStack
             if (PropertyInfo != null)
                 return PropertyInfo.GetPropertySetterFn();
             if (FieldInfo != null)
-                return (o, v) => FieldInfo.SetValue(o, v);
+                return FieldInfo.GetFieldSetterFn();
             if (MethodInfo != null)
                 return (PropertySetterDelegate)MethodInfo.MakeDelegate(typeof(PropertySetterDelegate));
 
@@ -584,65 +611,41 @@ namespace ServiceStack
             Func<PropertyInfo, bool> propertyInfoPredicate,
             Func<object, Type, bool> valuePredicate)
         {
-            foreach (var assignmentEntry in AssignmentMemberMap)
+            foreach (var assignmentEntryMap in AssignmentMemberMap)
             {
-                var assignmentMember = assignmentEntry.Value;
-                var fromMember = assignmentEntry.Value.From;
-                var toMember = assignmentEntry.Value.To;
+                var assignmentEntry = assignmentEntryMap.Value;
+                var fromMember = assignmentEntry.From;
+                var toMember = assignmentEntry.To;
 
                 if (fromMember.PropertyInfo != null && propertyInfoPredicate != null)
                 {
                     if (!propertyInfoPredicate(fromMember.PropertyInfo)) continue;
                 }
 
+                var fromType = fromMember.Type;
+                var toType = toMember.Type;
                 try
                 {
-                    var fromValue = assignmentMember.GetValueFn(from);
+                    var fromValue = assignmentEntry.GetValueFn(from);
 
                     if (valuePredicate != null)
                     {
                         if (!valuePredicate(fromValue, fromMember.PropertyInfo.PropertyType)) continue;
                     }
 
-                    if (fromMember.Type != toMember.Type)
+                    if (assignmentEntry.ConvertValueFn != null)
                     {
-                        if (fromMember.Type == typeof(string))
-                        {
-                            fromValue = TypeSerializer.DeserializeFromString((string)fromValue, toMember.Type);
-                        }
-                        else if (toMember.Type == typeof(string))
-                        {
-                            fromValue = TypeSerializer.SerializeToString(fromValue);
-                        }
-                        else if (toMember.Type.IsGeneric()
-                            && toMember.Type.GenericTypeDefinition() == typeof(Nullable<>))
-                        {
-                            Type genericArg = toMember.Type.GenericTypeArguments()[0];
-                            if (genericArg.IsEnum())
-                            {
-                                fromValue = Enum.ToObject(genericArg, fromValue);
-                            }
-                        }
-                        else
-                        {
-                            var listResult = TranslateListWithElements.TryTranslateToGenericICollection(
-                                fromMember.Type, toMember.Type, fromValue);
-
-                            if (listResult != null)
-                            {
-                                fromValue = listResult;
-                            }
-                        }
+                        fromValue = assignmentEntry.ConvertValueFn(fromValue);
                     }
 
-                    var setterFn = assignmentMember.SetValueFn;
+                    var setterFn = assignmentEntry.SetValueFn;
                     setterFn(to, fromValue);
                 }
                 catch (Exception ex)
                 {
                     Tracer.Instance.WriteWarning("Error trying to set properties {0}.{1} > {2}.{3}:\n{4}",
-                        FromType.FullName, fromMember.Type.Name,
-                        ToType.FullName, toMember.Type.Name, ex);
+                        FromType.FullName, fromType.Name,
+                        ToType.FullName, toType.Name, ex);
                 }
             }
         }
@@ -663,4 +666,87 @@ namespace ServiceStack
             return PclExport.Instance.GetPropertyGetterFn(propertyInfo);
         }
     }
+
+    internal static class FieldInvoker
+    {
+        public static PropertySetterDelegate GetFieldSetterFn(this FieldInfo fieldInfo)
+        {
+            return PclExport.Instance.GetFieldSetterFn(fieldInfo);
+        }
+
+        public static PropertyGetterDelegate GetFieldGetterFn(this FieldInfo fieldInfo)
+        {
+            return PclExport.Instance.GetFieldGetterFn(fieldInfo);
+        }
+    }
+
+    internal static class TypeConverter
+    {
+        public static PropertyGetterDelegate CreateTypeConverter(Type fromType, Type toType)
+        {
+            if (fromType == toType)
+                return null;
+
+            if (fromType == typeof(string))
+            {
+                return fromValue => TypeSerializer.DeserializeFromString((string)fromValue, toType);
+            }
+            if (toType == typeof(string))
+            {
+                return TypeSerializer.SerializeToString;
+            }
+            if (toType.IsEnum() || fromType.IsEnum())
+            {
+                if (toType.IsEnum() && fromType.IsEnum())
+                {
+                    return fromValue => Enum.Parse(toType, fromValue.ToString(), ignoreCase:true);
+                }
+                if (toType.IsNullableType())
+                {
+                    var genericArg = toType.GenericTypeArguments()[0];
+                    if (genericArg.IsEnum())
+                    {
+                        return fromValue => Enum.ToObject(genericArg, fromValue);
+                    }
+                }
+                else if (toType.IsIntegerType())
+                {
+                    return fromValue => Enum.ToObject(fromType, fromValue);
+                }
+            }
+            else if (toType.IsNullableType())
+            {
+                return null;
+            }
+            else if (typeof(IEnumerable).IsAssignableFromType(fromType))
+            {
+                return fromValue =>
+                {
+                    var listResult = TranslateListWithElements.TryTranslateCollections(
+                        fromType, toType, fromValue);
+
+                    return listResult ?? fromValue;
+                };
+            }
+            else if (toType.IsValueType())
+            {
+                return fromValue => Convert.ChangeType(fromValue, toType, provider:null);
+            }
+            else
+            {
+                return fromValue => 
+                {
+                    if (fromValue == null) 
+                        return fromValue;
+
+                    var toValue = toType.CreateInstance();
+                    toValue.PopulateWith(fromValue);
+                    return toValue;
+                };
+            }
+
+            return null;
+        }
+    }
+
 }

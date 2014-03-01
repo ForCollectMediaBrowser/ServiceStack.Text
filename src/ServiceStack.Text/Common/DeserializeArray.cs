@@ -18,7 +18,7 @@ using System.Threading;
 
 namespace ServiceStack.Text.Common
 {
-    internal static class DeserializeArrayWithElements<TSerializer>
+    public static class DeserializeArrayWithElements<TSerializer>
         where TSerializer : ITypeSerializer
     {
         private static Dictionary<Type, ParseArrayOfElementsDelegate> ParseDelegateCache
@@ -49,7 +49,7 @@ namespace ServiceStack.Text.Common
         }
     }
 
-    internal static class DeserializeArrayWithElements<T, TSerializer>
+    public static class DeserializeArrayWithElements<T, TSerializer>
         where TSerializer : ITypeSerializer
     {
         private static readonly ITypeSerializer Serializer = JsWriter.GetTypeSerializer<TSerializer>();

@@ -151,7 +151,7 @@ namespace ServiceStack.Text.Common
         }
     }
 
-    internal class JsWriter<TSerializer>
+    public class JsWriter<TSerializer>
         where TSerializer : ITypeSerializer
     {
         private static readonly ITypeSerializer Serializer = JsWriter.GetTypeSerializer<TSerializer>();
@@ -243,7 +243,7 @@ namespace ServiceStack.Text.Common
             return Serializer.WriteObjectString;
         }
 
-        internal WriteObjectDelegate GetWriteFn<T>()
+        public WriteObjectDelegate GetWriteFn<T>()
         {
             if (typeof(T) == typeof(string))
             {
