@@ -461,9 +461,9 @@ namespace ServiceStack
             return key;
         }
 
-        public override void VerifyInAssembly(Type accessType, string assemblyName)
+        public override void VerifyInAssembly(Type accessType, ICollection<string> assemblyNames)
         {
-            if (!assemblyName.EqualsIgnoreCase(accessType.Assembly.ManifestModule.Name)) //might get merged/mangled on alt platforms
+            if (!assemblyNames.Contains(accessType.Assembly.ManifestModule.Name)) //might get merged/mangled on alt platforms
                 throw new LicenseException(LicenseUtils.ErrorMessages.UnauthorizedAccessRequest);
         }
 
@@ -608,7 +608,7 @@ namespace ServiceStack
             SupportsEmit = SupportsExpression = false;
         }
 
-        public override void VerifyInAssembly(Type accessType, string assemblyName)
+        public override void VerifyInAssembly(Type accessType, ICollection<string> assemblyNames)
         {
         }
 
@@ -849,7 +849,7 @@ namespace ServiceStack
             PlatformName = "Android";
         }
 
-        public override void VerifyInAssembly(Type accessType, string assemblyName)
+        public override void VerifyInAssembly(Type accessType, ICollection<string> assemblyNames)
         {
         }
 

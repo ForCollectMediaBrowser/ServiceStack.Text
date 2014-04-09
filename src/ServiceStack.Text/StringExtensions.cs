@@ -13,6 +13,8 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
+using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using ServiceStack.Text;
@@ -473,14 +475,17 @@ namespace ServiceStack
 
         public static int IndexOfAny(this string text, int startIndex, params string[] needles)
         {
-            if (text == null) return -1;
-
             var firstPos = -1;
-            foreach (var needle in needles)
+            if (text != null)
             {
-                var pos = text.IndexOf(needle);
-                if (firstPos == -1 || pos < firstPos) firstPos = pos;
+                foreach (var needle in needles)
+                {
+                    var pos = text.IndexOf(needle, startIndex);
+                    if ((pos >= 0) && (firstPos == -1 || pos < firstPos))
+                        firstPos = pos;
+                }
             }
+
             return firstPos;
         }
 
@@ -798,6 +803,39 @@ namespace ServiceStack
             return Int64.TryParse(text, out ret) ? ret : defaultValue;
         }
 
+        public static float ToFloat(this string text)
+        {
+            return text == null ? default(float) : float.Parse(text);
+        }
+
+        public static float ToFloat(this string text, float defaultValue)
+        {
+            float ret;
+            return float.TryParse(text, out ret) ? ret : defaultValue;
+        }
+
+        public static double ToDouble(this string text)
+        {
+            return text == null ? default(double) : double.Parse(text);
+        }
+
+        public static double ToDouble(this string text, double defaultValue)
+        {
+            double ret;
+            return double.TryParse(text, out ret) ? ret : defaultValue;
+        }
+
+        public static decimal ToDecimal(this string text)
+        {
+            return text == null ? default(decimal) : decimal.Parse(text);
+        }
+
+        public static decimal ToDecimal(this string text, decimal defaultValue)
+        {
+            decimal ret;
+            return decimal.TryParse(text, out ret) ? ret : defaultValue;
+        }
+
         public static bool Glob(this string value, string pattern)
         {
             int pos;
@@ -851,6 +889,31 @@ namespace ServiceStack
         public static byte[] ToAsciiBytes(this string value)
         {
             return PclExport.Instance.GetAsciiBytes(value);
+        }
+
+        public static Dictionary<string,string> ParseKeyValueText(this string text, string delimiter=":")
+        {
+            var to = new Dictionary<string, string>();
+            if (text == null) return to;
+
+            foreach (var parts in text.ReadLines().Select(line => line.SplitOnFirst(delimiter)))
+            {
+                var key = parts[0].Trim();
+                if (key.Length == 0) continue;
+                to[key] = parts.Length == 2 ? parts[1].Trim() : null;
+            }
+
+            return to;
+        }
+
+        public static IEnumerable<string> ReadLines(this string text)
+        {
+            string line;
+            var reader = new StringReader(text ?? "");
+            while ((line = reader.ReadLine()) != null)
+            {
+                yield return line;
+            }
         }
 
 #if !XBOX

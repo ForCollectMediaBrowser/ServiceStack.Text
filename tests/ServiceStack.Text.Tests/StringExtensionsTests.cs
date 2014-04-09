@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Linq;
 using NUnit.Framework;
 
 namespace ServiceStack.Text.Tests
@@ -81,16 +82,19 @@ namespace ServiceStack.Text.Tests
 			Assert.That("path/to/file.ext".WithoutExtension(), Is.EqualTo("path/to/file"));
 		}
 
-		[Test]
-		public void Does_find_IndexOfAny_strings()
+        //         0         1
+        //         01234567890123456789
+        [TestCase("text with /* and <!--", "<!--", "/*", 10)]
+        [TestCase("text with /* and <!--", "<!--x", "/*", 10)]
+        [TestCase("text with /* and <!--", "<!--", "/*x", 17)]
+        [TestCase("text with /* and <!--", "<!--x", "/*x", -1)]
+        public void Does_find_IndexOfAny_strings(string text, string needle1, string needle2, int expectedPos)
 		{
-			var text = "text with /* and <!--";
-			var pos = text.IndexOfAny("<!--", "/*");
-			//Console.WriteLine(text.Substring(pos));
-			Assert.That(pos, Is.EqualTo("text with ".Length));
+			var pos = text.IndexOfAny(needle1, needle2);
+			Assert.That(pos, Is.EqualTo(expectedPos));
 		}
 
-		[Test]
+        [Test]
 		public void Does_ExtractContent_first_pattern_from_Document_without_marker()
 		{
 			var text = "text with random <!--comment--> and Contents: <!--Contents--> are here";
@@ -196,6 +200,31 @@ namespace ServiceStack.Text.Tests
                 Is.EqualTo("/path/info"));
             Assert.That("/path/info".TrimPrefixes("/www_deploy", "~/www_deploy"),
                 Is.EqualTo("/path/info"));
+        }
+
+	    [Test]
+	    public void Can_read_lines()
+	    {
+            Assert.That((null as string).ReadLines().Count(), Is.EqualTo(0));
+            Assert.That("".ReadLines().Count(), Is.EqualTo(0));
+            Assert.That("a".ReadLines().Count(), Is.EqualTo(1));
+            Assert.That("a\nb".ReadLines().Count(), Is.EqualTo(2));
+            Assert.That("a\r\nb".ReadLines().Count(), Is.EqualTo(2));
+	    }
+
+	    [Test]
+	    public void Can_ParseKeyValueText()
+	    {
+            Assert.That("".ParseKeyValueText().Count, Is.EqualTo(0));
+            Assert.That("a".ParseKeyValueText().Count, Is.EqualTo(1));
+            Assert.That("a".ParseKeyValueText()["a"], Is.Null);
+            Assert.That("a:".ParseKeyValueText().Count, Is.EqualTo(1));
+            Assert.That("a:".ParseKeyValueText()["a"], Is.EqualTo(""));
+            Assert.That("a:b".ParseKeyValueText()["a"], Is.EqualTo("b"));
+            Assert.That("a:b:c".ParseKeyValueText()["a"], Is.EqualTo("b:c"));
+            Assert.That("a : b:c ".ParseKeyValueText()["a"], Is.EqualTo("b:c"));
+            Assert.That("a:b\nc:d".ParseKeyValueText()["c"], Is.EqualTo("d"));
+            Assert.That("a:b\r\nc:d".ParseKeyValueText()["c"], Is.EqualTo("d"));
         }
 	}
 }

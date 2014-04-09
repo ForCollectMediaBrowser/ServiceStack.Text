@@ -20,6 +20,9 @@ namespace ServiceStack
     {
         public static T ConvertTo<T>(this object from)
         {
+            if (from == null)
+                return default(T);
+
             if (from.GetType() == typeof(T))
             {
                 return (T)from;
@@ -27,7 +30,7 @@ namespace ServiceStack
 
             if (from.GetType().IsValueType())
             {
-                return (T)Convert.ChangeType(from, typeof(T), provider:null);
+                return (T)Convert.ChangeType(from, typeof(T), provider: null);
             }
 
             if (typeof(IEnumerable).IsAssignableFromType(typeof(T)))
@@ -282,6 +285,18 @@ namespace ServiceStack
             var assignmentDefinition = GetAssignmentDefinition(to.GetType(), from.GetType());
 
             assignmentDefinition.PopulateFromPropertiesWithAttribute(to, from, attributeType);
+
+            return to;
+        }
+
+        public static To PopulateFromPropertiesWithoutAttribute<To, From>(this To to, From from,
+            Type attributeType)
+        {
+            if (Equals(to, default(To)) || Equals(from, default(From))) return default(To);
+
+            var assignmentDefinition = GetAssignmentDefinition(to.GetType(), from.GetType());
+
+            assignmentDefinition.PopulateFromPropertiesWithoutAttribute(to, from, attributeType);
 
             return to;
         }
@@ -593,6 +608,13 @@ namespace ServiceStack
             Populate(to, from, hasAttributePredicate, null);
         }
 
+        public void PopulateFromPropertiesWithoutAttribute(object to, object from, Type attributeType)
+        {
+            var hasAttributePredicate = (Func<PropertyInfo, bool>)
+                (x => x.AllAttributes(attributeType).Length == 0);
+            Populate(to, from, hasAttributePredicate, null);
+        }
+
         public void PopulateWithNonDefaultValues(object to, object from)
         {
             var nonDefaultPredicate = (Func<object, Type, bool>)((x, t) =>
@@ -699,7 +721,7 @@ namespace ServiceStack
             {
                 if (toType.IsEnum() && fromType.IsEnum())
                 {
-                    return fromValue => Enum.Parse(toType, fromValue.ToString(), ignoreCase:true);
+                    return fromValue => Enum.Parse(toType, fromValue.ToString(), ignoreCase: true);
                 }
                 if (toType.IsNullableType())
                 {
@@ -711,11 +733,25 @@ namespace ServiceStack
                 }
                 else if (toType.IsIntegerType())
                 {
+                    if (fromType.IsNullableType())
+                    {
+                        var genericArg = fromType.GenericTypeArguments()[0];
+                        if (genericArg.IsEnum())
+                        {
+                            return fromValue => Enum.ToObject(genericArg, fromValue);
+                        }
+                    }
                     return fromValue => Enum.ToObject(fromType, fromValue);
                 }
             }
             else if (toType.IsNullableType())
             {
+                var toTypeBaseType = toType.GenericTypeArguments()[0];
+                if (toTypeBaseType.IsEnum())
+                {
+                    if (fromType.IsEnum() || (fromType.IsNullableType() && fromType.GenericTypeArguments()[0].IsEnum()))
+                        return fromValue => Enum.ToObject(toTypeBaseType, fromValue);
+                }
                 return null;
             }
             else if (typeof(IEnumerable).IsAssignableFromType(fromType))
@@ -730,13 +766,13 @@ namespace ServiceStack
             }
             else if (toType.IsValueType())
             {
-                return fromValue => Convert.ChangeType(fromValue, toType, provider:null);
+                return fromValue => Convert.ChangeType(fromValue, toType, provider: null);
             }
             else
             {
-                return fromValue => 
+                return fromValue =>
                 {
-                    if (fromValue == null) 
+                    if (fromValue == null)
                         return fromValue;
 
                     var toValue = toType.CreateInstance();
