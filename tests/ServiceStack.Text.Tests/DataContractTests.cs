@@ -188,6 +188,20 @@ namespace ServiceStack.Text.Tests
             public string Title { get; set; }
         }
 
+        [DataContract]
+        public class ClassFour
+        {
+            [DataMember(Name = "some-title")]
+            public string Title;
+        }
+
+        [DataContract]
+        public class ClassFive
+        {
+            [DataMember(Name = "some-bytes")]
+            public byte[] Bytes;
+        }
+
         [Test]
         public void Csv_Serialize_Should_Respects_DataContract_Name()
         {
@@ -219,6 +233,13 @@ namespace ServiceStack.Text.Tests
         }
 
         [Test]
+        public void Json_Serialize_Should_Respects_DataContract_Field_Name_When_Deserialize()
+        {
+            var t = JsonSerializer.DeserializeFromString<ClassFour>("{\"some-title\": \"right\", \"Title\": \"wrong\"}");
+            Assert.That(t.Title, Is.EqualTo("right"));
+        }
+
+        [Test]
         public void Json_Serialize_Should_Respects_DataContract_Name()
         {
             var classOne = new ClassOne {
@@ -228,6 +249,13 @@ namespace ServiceStack.Text.Tests
             };
             Assert.That(JsonSerializer.SerializeToString(classOne),
                         Is.EqualTo("{\"Id\":1,\"listClassTwo\":[{\"NewName\":\"Name One\"},{\"NewName\":\"Name Two\"}]}"));
+        }
+
+        [Test]
+        public void Json_Serialize_Should_Respects_DataContract_Field_Name_With_Bytes_Deserialize()
+        {
+            var t = JsonSerializer.DeserializeFromString<ClassFive>("{\"some-bytes\": \"YWI=\"}");
+            Assert.IsTrue (t.Bytes.AreEqual (new byte[] { 0x61, 0x62 }));
         }
 
         [Test]
