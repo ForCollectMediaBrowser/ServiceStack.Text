@@ -56,6 +56,7 @@ namespace ServiceStack.Text
         public bool? TryToParsePrimitiveTypeValues { get; set; }
 		public bool? TryToParseNumericType { get; set; }
         public bool? IncludeNullValues { get; set; }
+        public bool? IncludeDefaultEnums { get; set; }
         public bool? TreatEnumAsInteger { get; set; }
         public bool? ExcludeTypeInfo { get; set; }
         public bool? IncludeTypeInfo { get; set; }
@@ -76,6 +77,7 @@ namespace ServiceStack.Text
         public bool? EscapeUnicode { get; set; }
         public bool? PreferInterfaces { get; set; }
         public bool? IncludePublicFields { get; set; }
+        public bool? ReuseStringBuffer { get; set; }
         public int? MaxDepth { get; set; }
         public EmptyCtorFactoryDelegate ModelFactory { get; set; }
         public string[] ExcludePropertyReferences { get; set; }

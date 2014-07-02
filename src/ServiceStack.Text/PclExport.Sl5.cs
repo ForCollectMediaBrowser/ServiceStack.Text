@@ -9,6 +9,8 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Reflection;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace ServiceStack
 {
@@ -18,7 +20,7 @@ namespace ServiceStack
 
         public Sl5PclExport()
         {
-            this.PlatformName = "Silverlight5";
+            this.PlatformName = Platforms.Silverlight5;
         }
 
         public static PclExport Configure()
@@ -58,8 +60,18 @@ namespace ServiceStack
             string userAgent = null,
             bool? preAuthenticate = null)
         {
-            if (allowAutoRedirect.HasValue) req.AllowAutoRedirect = allowAutoRedirect.Value;
-            if (userAgent != null) req.UserAgent = userAgent;
+            //throws NotImplementedException in both BrowserHttp + ClientHttp
+            //if (allowAutoRedirect.HasValue) req.AllowAutoRedirect = allowAutoRedirect.Value;
+            //if (userAgent != null) req.UserAgent = userAgent; 
+
+            //Methods others than GET and POST are only supported by Client request creator, see
+            //http://msdn.microsoft.com/en-us/library/cc838250(v=vs.95).aspx
+            if (!IsBrowserHttp(req)) return;
+            if (req.Method != "GET" && req.Method != "POST")
+            {
+                req.Headers[HttpHeaders.XHttpMethodOverride] = req.Method;
+                req.Method = "POST";
+            }
         }
 
         public override HttpWebRequest CreateWebRequest(string requestUri, bool? emulateHttpViaPost = null)
@@ -69,6 +81,19 @@ namespace ServiceStack
                 : System.Net.Browser.WebRequestCreator.ClientHttp;
 
             return (HttpWebRequest)creator.Create(new Uri(requestUri));
+        }
+
+        private static bool IsBrowserHttp(WebRequest req)
+        {
+            return req.GetType().Name == "BrowserHttpWebRequest";
+        }
+
+        public override WebResponse GetResponse(WebRequest webRequest)
+        {
+            var task = webRequest.GetResponseAsync();
+            task.Wait();
+            var webRes = task.Result;
+            return webRes;
         }
     }
 }

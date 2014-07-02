@@ -176,6 +176,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="StaticAccessorTests.cs" />
     <Compile Include="AdhocModelTests.cs" />
     <Compile Include="AnonymousTypes.cs" />
     <Compile Include="AotTests.cs" />
@@ -183,6 +184,7 @@
     <Compile Include="AutoMappingTests.cs" />
     <Compile Include="BasicStringSerializerTests.cs" />
     <Compile Include="BclStructTests.cs" />
+    <Compile Include="CsvSerializerConfigTests.cs" />
     <Compile Include="CsvTests\DictionaryTests.cs" />
     <Compile Include="CyclicalDependencyTests.cs" />
     <Compile Include="DateTimeExtensionsTests.cs" />
@@ -193,6 +195,7 @@
     <Compile Include="EnumTests.cs" />
     <Compile Include="ExpandoTests.cs" />
     <Compile Include="HttpUtilsMockTests.cs" />
+    <Compile Include="JsConfigTests.cs" />
     <Compile Include="JsonTests\BasicPropertiesTests.cs" />
     <Compile Include="JsonObjectTests.cs" />
     <Compile Include="JsonTests\AnonymousDeserializationTests.cs" />
@@ -274,6 +277,7 @@
     <Compile Include="Support\BenchmarkTests.cs" />
     <Compile Include="Support\MovieDtos.cs" />
     <Compile Include="SystemTimeTests.cs" />
+    <Compile Include="TupleTests.cs" />
     <Compile Include="UseCases\CentroidTests.cs" />
     <Compile Include="UseCases\GitHubRestTests.cs" />
     <Compile Include="UseCases\GithubV3ApiTests.cs" />

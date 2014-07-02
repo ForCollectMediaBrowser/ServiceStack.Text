@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using System.Threading;
 using ServiceStack.Text.Common;
 using ServiceStack.Text.Json;
 using ServiceStack.Text.Jsv;
@@ -17,6 +18,7 @@ namespace ServiceStack.Text
             //JsConfig<System.Drawing.Color>.SerializeFn = c => c.ToString().Replace("Color ", "").Replace("[", "").Replace("]", "");
             //JsConfig<System.Drawing.Color>.DeSerializeFn = System.Drawing.Color.FromName;
             Reset();
+            LicenseUtils.Init();
         }
 
         public static JsConfigScope BeginScope()
@@ -29,6 +31,7 @@ namespace ServiceStack.Text
             bool? tryToParsePrimitiveTypeValues = null,
 			bool? tryToParseNumericType = null,
             bool? includeNullValues = null,
+            bool? includeDefaultEnums = null,
             bool? excludeTypeInfo = null,
             bool? includeTypeInfo = null,
             bool? emitCamelCaseNames = null,
@@ -47,6 +50,7 @@ namespace ServiceStack.Text
             bool? appendUtcOffset = null,
             bool? escapeUnicode = null,
             bool? includePublicFields = null,
+            bool? reuseStringBuffer = null,
             int? maxDepth = null,
             EmptyCtorFactoryDelegate modelFactory = null,
             string[] excludePropertyReferences = null)
@@ -56,6 +60,7 @@ namespace ServiceStack.Text
                 TryToParsePrimitiveTypeValues = tryToParsePrimitiveTypeValues ?? sTryToParsePrimitiveTypeValues,
                 TryToParseNumericType = tryToParseNumericType ?? sTryToParseNumericType,
                 IncludeNullValues = includeNullValues ?? sIncludeNullValues,
+                IncludeDefaultEnums = includeDefaultEnums ?? sIncludeDefaultEnums,
                 ExcludeTypeInfo = excludeTypeInfo ?? sExcludeTypeInfo,
                 IncludeTypeInfo = includeTypeInfo ?? sIncludeTypeInfo,
                 EmitCamelCaseNames = emitCamelCaseNames ?? sEmitCamelCaseNames,
@@ -74,6 +79,7 @@ namespace ServiceStack.Text
                 AppendUtcOffset = appendUtcOffset ?? sAppendUtcOffset,
                 EscapeUnicode = escapeUnicode ?? sEscapeUnicode,
                 IncludePublicFields = includePublicFields ?? sIncludePublicFields,
+                ReuseStringBuffer = reuseStringBuffer ?? sReuseStringBuffer,
                 MaxDepth = maxDepth ?? sMaxDepth,
                 ModelFactory = modelFactory ?? ModelFactory,
                 ExcludePropertyReferences = excludePropertyReferences ?? sExcludePropertyReferences
@@ -130,13 +136,28 @@ namespace ServiceStack.Text
         {
             get
             {
-                return (JsConfigScope.Current != null ? JsConfigScope.Current.IncludeNullValues: null)
-                    ?? sIncludeNullValues 
+                return (JsConfigScope.Current != null ? JsConfigScope.Current.IncludeNullValues : null)
+                    ?? sIncludeNullValues
                     ?? false;
             }
             set
             {
                 if (!sIncludeNullValues.HasValue) sIncludeNullValues = value;
+            }
+        }
+
+        private static bool? sIncludeDefaultEnums;
+        public static bool IncludeDefaultEnums
+        {
+            get
+            {
+                return (JsConfigScope.Current != null ? JsConfigScope.Current.IncludeDefaultEnums : null)
+                    ?? sIncludeDefaultEnums
+                    ?? true;
+            }
+            set
+            {
+                if (!sIncludeDefaultEnums.HasValue) sIncludeDefaultEnums = value;
             }
         }
 
@@ -504,6 +525,25 @@ namespace ServiceStack.Text
         }
 
         /// <summary>
+        /// For extra serialization performance you can re-use a ThreadStatic StringBuilder
+        /// when serializing to a JSON String.
+        /// </summary>
+        private static bool? sReuseStringBuffer;
+        public static bool ReuseStringBuffer
+        {
+            get
+            {
+                return (JsConfigScope.Current != null ? JsConfigScope.Current.ReuseStringBuffer : null)
+                    ?? sReuseStringBuffer
+                    ?? false;
+            }
+            set
+            {
+                if (!sReuseStringBuffer.HasValue) sReuseStringBuffer = value;
+            }
+        }
+
+        /// <summary>
         /// Sets the maximum depth to avoid circular dependencies
         /// </summary>
         private static int? sMaxDepth;
@@ -603,6 +643,7 @@ namespace ServiceStack.Text
             sAppendUtcOffset = null;
             sEscapeUnicode = null;
             sIncludePublicFields = null;
+            sReuseStringBuffer = null;
             HasSerializeFn = new HashSet<Type>();
             TreatValueAsRefTypes = new HashSet<Type> { typeof(KeyValuePair<,>) };
             sPropertyConvention = null;
@@ -624,7 +665,24 @@ namespace ServiceStack.Text
             methodInfo.Invoke(null, null);
         }
 
-        internal static HashSet<Type> __uniqueTypes = new HashSet<Type>(); 
+        internal static HashSet<Type> __uniqueTypes = new HashSet<Type>();
+        internal static int __uniqueTypesCount = 0;
+
+        internal static void AddUniqueType(Type type)
+        {
+            if (__uniqueTypes.Contains(type))
+                return;
+
+            HashSet<Type> newTypes, snapshot;
+            do
+            {
+                snapshot = __uniqueTypes;
+                newTypes = new HashSet<Type>(__uniqueTypes) { type };
+                __uniqueTypesCount = newTypes.Count;
+
+            } while (!ReferenceEquals(
+                Interlocked.CompareExchange(ref __uniqueTypes, newTypes, snapshot), snapshot));
+        }
     }
 
     public class JsConfig<T>
@@ -632,12 +690,12 @@ namespace ServiceStack.Text
         /// <summary>
         /// Always emit type info for this type.  Takes precedence over ExcludeTypeInfo
         /// </summary>
-        public static bool IncludeTypeInfo = false;
+        public static bool? IncludeTypeInfo = null;
 
         /// <summary>
         /// Never emit type info for this type
         /// </summary>
-        public static bool ExcludeTypeInfo = false;
+        public static bool? ExcludeTypeInfo = null;
 
         /// <summary>
         /// <see langword="true"/> if the <see cref="ITypeSerializer"/> is configured
@@ -645,9 +703,9 @@ namespace ServiceStack.Text
         /// to support user-friendly serialized formats, ie emitting camelCasing for JSON
         /// and parsing member names and enum values in a case-insensitive manner.
         /// </summary>
-        public static bool EmitCamelCaseNames = false;
+        public static bool? EmitCamelCaseNames = null;
 
-        public static bool EmitLowercaseUnderscoreNames = false;
+        public static bool? EmitLowercaseUnderscoreNames = null;
 
         /// <summary>
         /// Define custom serialization fn for BCL Structs
@@ -792,6 +850,8 @@ namespace ServiceStack.Text
         {
             RawSerializeFn = null;
             DeSerializeFn = null;
+            ExcludePropertyNames = null;
+            EmitCamelCaseNames = EmitLowercaseUnderscoreNames = IncludeTypeInfo = ExcludeTypeInfo = null;
         }    
     }
 

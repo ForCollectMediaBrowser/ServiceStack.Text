@@ -20,6 +20,15 @@ namespace ServiceStack
 {
     public abstract class PclExport
     {
+        public static class Platforms
+        {
+            public const string WindowsStore = "WindowsStore";
+            public const string Android = "Android";
+            public const string IOS = "IOS";
+            public const string Silverlight5 = "Silverlight5";
+            public const string WindowsPhone = "WindowsPhone";
+        }
+
         public static PclExport Instance
 #if PCL
           /*attempts to be inferred otherwise needs to be set explicitly by host project*/
@@ -93,13 +102,13 @@ namespace ServiceStack
 
         public RegexOptions RegexOptions = RegexOptions.None;
 
-        public StringComparison InvariantComparison = StringComparison.CurrentCulture;
+        public StringComparison InvariantComparison = StringComparison.Ordinal;
 
-        public StringComparison InvariantComparisonIgnoreCase = StringComparison.CurrentCultureIgnoreCase;
+        public StringComparison InvariantComparisonIgnoreCase = StringComparison.OrdinalIgnoreCase;
 
-        public StringComparer InvariantComparer = StringComparer.CurrentCulture;
+        public StringComparer InvariantComparer = StringComparer.Ordinal;
 
-        public StringComparer InvariantComparerIgnoreCase = StringComparer.CurrentCultureIgnoreCase;
+        public StringComparer InvariantComparerIgnoreCase = StringComparer.OrdinalIgnoreCase;
 
         public abstract string ReadAllText(string filePath);
 
@@ -346,8 +355,11 @@ namespace ServiceStack
 
         public virtual DateTime ParseXsdDateTimeAsUtc(string dateTimeStr)
         {
-            var dateTimeType = "yyyy-MM-ddTHH:mm:sszzzzzzz";
-            return XmlConvert.ToDateTimeOffset(dateTimeStr, dateTimeType).DateTime.Prepare();
+            var knownDateTime = DateTimeSerializer.ParseManual(dateTimeStr);
+            if (knownDateTime == null)
+                throw new ArgumentException("Unable to parse unknown format: {0}".Fmt(dateTimeStr));
+
+            return knownDateTime.Value;
         }
 
         public virtual DateTime ToStableUniversalTime(DateTime dateTime)
