@@ -127,7 +127,7 @@ namespace ServiceStack
             internal const string ExceededServiceStackOperations = "The free-quota limit on '{0} ServiceStack Operations' has been reached." + UpgradeInstructions;
             internal const string ExceededAdminUi = "The Admin UI is a commerical-only premium feature." + UpgradeInstructions;
             internal const string ExceededPremiumFeature = "Unauthorized use of a commerical-only premium feature." + UpgradeInstructions;
-            public const string UnauthorizedAccessRequest = "Unauthorized access request of a licensed feature." + UpgradeInstructions;
+            public const string UnauthorizedAccessRequest = "Unauthorized access request of a licensed feature.";
         }
 
         public static class FreeQuotas
@@ -385,9 +385,20 @@ namespace ServiceStack
         {
             var accessType = accessToken.GetType();
 
-            if (srcFeature != LicenseFeature.Client || requestedAccess != LicenseFeature.Text
-                || accessToken == null || !_approved.__tokens.Contains(accessType.FullName))
+            if (srcFeature != LicenseFeature.Client || requestedAccess != LicenseFeature.Text || accessToken == null)
                 throw new LicenseException(ErrorMessages.UnauthorizedAccessRequest);
+
+            if (accessType.Name == "AccessToken" && accessType.GetAssembly().ManifestModule.Name.StartsWith("<")) //Smart Assembly
+                return new AccessToken(requestedAccess);
+
+            if (!_approved.__tokens.Contains(accessType.FullName))
+            {
+                var errorDetails = " __token: '{0}', Assembly: '{1}'".Fmt(
+                    accessType.Name,
+                    accessType.GetAssembly().ManifestModule.Name);
+
+                throw new LicenseException(ErrorMessages.UnauthorizedAccessRequest + errorDetails);
+            }
 
             PclExport.Instance.VerifyInAssembly(accessType, _approved.__dlls);
 

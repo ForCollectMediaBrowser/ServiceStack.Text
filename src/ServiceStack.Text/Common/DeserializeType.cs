@@ -156,31 +156,51 @@ namespace ServiceStack.Text.Common
             bool boolValue;
             if (bool.TryParse(value, out boolValue)) return boolValue;
 
+            // Parse as decimal
             decimal decimalValue;
-            if (decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out decimalValue))
-            {
-	            if (!JsConfig.TryToParseNumericType)
-		            return decimalValue;
+            var acceptDecimal = JsConfig.ParsePrimitiveFloatingPointTypes.HasFlag(ParseAsType.Decimal);
+            var isDecimal = decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out decimalValue);
 
-                if (decimalValue == decimal.Truncate(decimalValue))
-				{
-					if (decimalValue <= byte.MaxValue && decimalValue >= byte.MinValue) return (byte)decimalValue;
-					if (decimalValue <= sbyte.MaxValue && decimalValue >= sbyte.MinValue) return (sbyte)decimalValue;
-					if (decimalValue <= Int16.MaxValue && decimalValue >= Int16.MinValue) return (Int16)decimalValue;
-					if (decimalValue <= UInt16.MaxValue && decimalValue >= UInt16.MinValue) return (UInt16)decimalValue;
-					if (decimalValue <= Int32.MaxValue && decimalValue >= Int32.MinValue) return (Int32)decimalValue;
-					if (decimalValue <= UInt32.MaxValue && decimalValue >= UInt32.MinValue) return (UInt32)decimalValue;
-					if (decimalValue <= Int64.MaxValue && decimalValue >= Int64.MinValue) return (Int64)decimalValue;
-					if (decimalValue <= UInt64.MaxValue && decimalValue >= UInt64.MinValue) return (UInt64)decimalValue;
-                }
+            // Check if the number is an Primitive Integer type given that we have a decimal
+            if (isDecimal && decimalValue == decimal.Truncate(decimalValue))
+            {
+                // Value is a whole number
+                var parseAs = JsConfig.ParsePrimitiveIntegerTypes;
+                if (parseAs.HasFlag(ParseAsType.Byte) && decimalValue <= byte.MaxValue && decimalValue >= byte.MinValue) return (byte)decimalValue;
+                if (parseAs.HasFlag(ParseAsType.SByte) && decimalValue <= sbyte.MaxValue && decimalValue >= sbyte.MinValue) return (sbyte)decimalValue;
+                if (parseAs.HasFlag(ParseAsType.Int16) && decimalValue <= Int16.MaxValue && decimalValue >= Int16.MinValue) return (Int16)decimalValue;
+                if (parseAs.HasFlag(ParseAsType.UInt16) && decimalValue <= UInt16.MaxValue && decimalValue >= UInt16.MinValue) return (UInt16)decimalValue;
+                if (parseAs.HasFlag(ParseAsType.Int32) && decimalValue <= Int32.MaxValue && decimalValue >= Int32.MinValue) return (Int32)decimalValue;
+                if (parseAs.HasFlag(ParseAsType.UInt32) && decimalValue <= UInt32.MaxValue && decimalValue >= UInt32.MinValue) return (UInt32)decimalValue;
+                if (parseAs.HasFlag(ParseAsType.Int64) && decimalValue <= Int64.MaxValue && decimalValue >= Int64.MinValue) return (Int64)decimalValue;
+                if (parseAs.HasFlag(ParseAsType.UInt64) && decimalValue <= UInt64.MaxValue && decimalValue >= UInt64.MinValue) return (UInt64)decimalValue;
                 return decimalValue;
             }
 
+            // Value is a floating point number
+
+            // Return a decimal if the user accepts a decimal
+            if (isDecimal && acceptDecimal)
+                return decimalValue;
+
             float floatValue;
-            if (float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out floatValue)) return floatValue;
+            var acceptFloat = JsConfig.ParsePrimitiveFloatingPointTypes.HasFlag(ParseAsType.Single);
+            var isFloat = float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out floatValue);
+            if (acceptFloat && isFloat)
+                return floatValue;
 
             double doubleValue;
-            if (double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out doubleValue)) return doubleValue;
+            var acceptDouble = JsConfig.ParsePrimitiveFloatingPointTypes.HasFlag(ParseAsType.Double);
+            var isDouble = double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out doubleValue);
+            if (acceptDouble && isDouble)
+                return doubleValue;
+
+            if (isDecimal)
+                return decimalValue;
+            if (isFloat)
+                return floatValue;
+            if (isDouble)
+                return doubleValue;
 
             return null;
         }
@@ -285,12 +305,12 @@ namespace ServiceStack.Text.Common
             };
         }
 
-		private static SetPropertyDelegate GetSetFieldMethod(TypeConfig typeConfig, FieldInfo fieldInfo)
-		{
+        private static SetPropertyDelegate GetSetFieldMethod(TypeConfig typeConfig, FieldInfo fieldInfo)
+        {
             if (fieldInfo.ReflectedType() != fieldInfo.DeclaringType)
                 fieldInfo = fieldInfo.DeclaringType.GetFieldInfo(fieldInfo.Name);
 
-		    return PclExport.Instance.GetSetFieldMethod(fieldInfo);
-		}
+            return PclExport.Instance.GetSetFieldMethod(fieldInfo);
+        }
     }
 }

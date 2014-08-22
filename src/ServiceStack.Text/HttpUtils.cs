@@ -12,6 +12,8 @@ namespace ServiceStack
 {
     public static class HttpUtils
     {
+        public static string UserAgent = "ServiceStack.Text";
+
         [ThreadStatic]
         public static IHttpResultsFilter ResultsFilter;
 
@@ -840,8 +842,14 @@ namespace ServiceStack
         public const string MarkdownText = "text/markdown";
         public const string MsgPack = "application/x-msgpack";
         public const string NetSerializer = "application/x-netserializer";
+
+        public const string ImagePng = "image/png";
+        public const string ImageGif = "image/gif";
+        public const string ImageJpg = "image/jpeg";
+
         public const string Bson = "application/bson";
         public const string Binary = "application/octet-stream";
+        public const string ServerSentEvents = "text/event-stream";
 
         public static string GetExtension(string mimeType)
         {
