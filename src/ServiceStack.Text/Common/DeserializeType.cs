@@ -36,8 +36,8 @@ namespace ServiceStack.Text.Common
                 return value => ctorFn();
 
             return typeof(TSerializer) == typeof(Json.JsonTypeSerializer)
-                ? (ParseStringDelegate)(value => DeserializeTypeRefJson.StringToType(type, value, ctorFn, map))
-                : value => DeserializeTypeRefJsv.StringToType(type, value, ctorFn, map);
+                ? (ParseStringDelegate)(value => DeserializeTypeRefJson.StringToType(typeConfig, value, ctorFn, map))
+                : value => DeserializeTypeRefJsv.StringToType(typeConfig, value, ctorFn, map);
         }
 
         public static object ObjectStringToType(string strType)
@@ -72,15 +72,24 @@ namespace ServiceStack.Text.Common
 
         public static Type ExtractType(string strType)
         {
+            if (strType == null || strType.Length <= 1) return null;
+
+            var hasWhitespace = JsonUtils.WhiteSpaceChars.Contains(strType[1]);
+            if (hasWhitespace)
+            {
+                var pos = strType.IndexOf('"');
+                if (pos >= 0)
+                    strType = "{" + strType.Substring(pos);
+            }
+
             var typeAttrInObject = Serializer.TypeAttrInObject;
-            if (strType != null
-                && strType.Length > typeAttrInObject.Length
+            if (strType.Length > typeAttrInObject.Length
                 && strType.Substring(0, typeAttrInObject.Length) == typeAttrInObject)
             {
                 var propIndex = typeAttrInObject.Length;
                 var typeName = Serializer.UnescapeSafeString(Serializer.EatValue(strType, ref propIndex));
 
-                var type = JsConfig.TypeFinder.Invoke(typeName);
+                var type = JsConfig.TypeFinder(typeName);
 
                 if (type == null)
                 {
@@ -225,15 +234,23 @@ namespace ServiceStack.Text.Common
 
         public static Type ExtractType(ITypeSerializer Serializer, string strType)
         {
-            var typeAttrInObject = Serializer.TypeAttrInObject;
+            if (strType == null || strType.Length <= 1) return null;
 
-            if (strType != null
-                && strType.Length > typeAttrInObject.Length
+            var hasWhitespace = JsonUtils.WhiteSpaceChars.Contains(strType[1]);
+            if (hasWhitespace)
+            {
+                var pos = strType.IndexOf('"');
+                if (pos >= 0)
+                    strType = "{" + strType.Substring(pos);
+            }
+
+            var typeAttrInObject = Serializer.TypeAttrInObject;
+            if (strType.Length > typeAttrInObject.Length
                 && strType.Substring(0, typeAttrInObject.Length) == typeAttrInObject)
             {
                 var propIndex = typeAttrInObject.Length;
                 var typeName = Serializer.EatValue(strType, ref propIndex);
-                var type = JsConfig.TypeFinder.Invoke(typeName);
+                var type = JsConfig.TypeFinder(typeName);
 
                 if (type == null)
                     Tracer.Instance.WriteWarning("Could not find type: " + typeName);

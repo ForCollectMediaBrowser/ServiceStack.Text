@@ -89,28 +89,28 @@ namespace ServiceStack.Text.Tests.JsonTests
 		}
 
 		[Test]
-		public void Can_deserialize_json_date_timestampOffset_withOffset_asUnspecified()
+		public void Can_deserialize_json_date_timestampOffset_withOffset_as_Local()
 		{
 			JsConfig.DateHandler = DateHandler.TimestampOffset;
 
 			const string json = @"""\/Date(785660400000-0700)\/""";
 			var fromJson = JsonSerializer.DeserializeFromString<DateTime>(json);
 
-			var dateTime = new DateTime(1994, 11, 24, 0, 0, 0, DateTimeKind.Unspecified);
+            var dateTime = new DateTime(1994, 11, 24, 0, 0, 0, DateTimeKind.Local);
 			Assert.That(fromJson, Is.EqualTo(dateTime));
 			Assert.That(fromJson.Kind, Is.EqualTo(dateTime.Kind));
 			JsConfig.Reset();
 		}
 
         [Test]
-        public void Can_deserialize_json_date_timestampOffset_withZeroOffset_asUnspecified()
+        public void Can_deserialize_json_date_timestampOffset_withZeroOffset_as_Local()
         {
             JsConfig.DateHandler = DateHandler.TimestampOffset;
 
             const string json = @"""\/Date(785635200000+0000)\/""";
             var fromJson = JsonSerializer.DeserializeFromString<DateTime>(json);
 
-            var dateTime = new DateTime(1994, 11, 24, 0, 0, 0, DateTimeKind.Unspecified);
+            var dateTime = new DateTime(1994, 11, 24, 0, 0, 0, DateTimeKind.Local);
             Assert.That(fromJson, Is.EqualTo(dateTime));
             Assert.That(fromJson.Kind, Is.EqualTo(dateTime.Kind));
             JsConfig.Reset();
@@ -346,7 +346,7 @@ namespace ServiceStack.Text.Tests.JsonTests
 		}
 
 		[Test]
-		public void Can_deserialize_json_date_iso8601_withoutOffset_asUnspecified()
+		public void Can_deserialize_json_date_iso8601_withoutOffset_as_Unspecified()
 		{
 			JsConfig.DateHandler = DateHandler.ISO8601;
 
@@ -508,7 +508,7 @@ namespace ServiceStack.Text.Tests.JsonTests
             var offsetSpan = TimeZoneInfo.Local.GetUtcOffset(dateTime);
             var offset = offsetSpan.ToTimeOffsetString(":");
 
-            Assert.That(ssJson, Is.EqualTo(@"""Thu, 24 Nov 1994 12:34:56 GMT"""));
+            Assert.That(ssJson, Is.EqualTo(@"""Thu, 24 Nov 1994 17:34:56 GMT""")); //Convert to UTC on wire
             JsConfig.Reset();
         }
 
@@ -520,7 +520,7 @@ namespace ServiceStack.Text.Tests.JsonTests
             var dateTime = new DateTime(1994, 11, 24, 12, 34, 56, DateTimeKind.Unspecified);
             var ssJson = JsonSerializer.SerializeToString(dateTime);
 
-            Assert.That(ssJson, Is.EqualTo(@"""Thu, 24 Nov 1994 12:34:56 GMT"""));
+            Assert.That(ssJson, Is.EqualTo(@"""Thu, 24 Nov 1994 17:34:56 GMT""")); //Convert to UTC on wire
             JsConfig.Reset();
         }
 

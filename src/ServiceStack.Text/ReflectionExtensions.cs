@@ -130,7 +130,7 @@ namespace ServiceStack
             return false;
         }
 
-        public static Type GetGenericType(this Type type)
+        public static Type FirstGenericType(this Type type)
         {
             while (type != null)
             {
@@ -174,7 +174,7 @@ namespace ServiceStack
                 }
             }
 
-            var genericType = type.GetGenericType();
+            var genericType = type.FirstGenericType();
             if (genericType != null && genericType.GetGenericTypeDefinition() == genericTypeDefinition)
             {
                 return genericType;
@@ -321,7 +321,7 @@ namespace ServiceStack
 
             if (!type.IsGeneric()) return null;
 
-            var genericType = type.GetGenericType();
+            var genericType = type.FirstGenericType();
             return genericType.GetGenericTypeDefinition() == genericInterfaceType
                     ? genericType
                     : null;
@@ -428,7 +428,7 @@ namespace ServiceStack
             EmptyCtorDelegate emptyCtorFn;
             if (TypeNamesMap.TryGetValue(typeName, out emptyCtorFn)) return emptyCtorFn;
 
-            var type = JsConfig.TypeFinder.Invoke(typeName);
+            var type = JsConfig.TypeFinder(typeName);
             if (type == null) return null;
             emptyCtorFn = GetConstructorMethodToCache(type);
 
@@ -667,6 +667,15 @@ namespace ServiceStack
                 .ToArray();
         }
 
+        public static Func<object, string, object, object> GetOnDeserializing<T>()
+        {
+            var method = typeof(T).GetMethodInfo("OnDeserializing");
+            if (method == null || method.ReturnType != typeof(object))
+                return null;
+            var obj = (Func<T, string, object, object>)method.CreateDelegate(typeof(Func<T, string, object, object>));
+            return (instance, memberName, value) => obj((T)instance, memberName, value);
+        }
+
         public static FieldInfo[] GetSerializableFields(this Type type)
         {
             if (type.IsDto())
@@ -771,7 +780,7 @@ namespace ServiceStack
         public static Type ReflectedType(this PropertyInfo pi)
         {
 #if (NETFX_CORE || PCL)
-            return pi.PropertyType;
+            return pi.DeclaringType;
 #else
             return pi.ReflectedType;
 #endif
@@ -780,7 +789,7 @@ namespace ServiceStack
         public static Type ReflectedType(this FieldInfo fi)
         {
 #if (NETFX_CORE || PCL)
-            return fi.FieldType;
+            return fi.DeclaringType;
 #else
             return fi.ReflectedType;
 #endif
@@ -1127,7 +1136,7 @@ namespace ServiceStack
             List<Attribute> propertyAttrs;
             return !propertyAttributesMap.TryGetValue(propertyInfo.UniqueKey(), out propertyAttrs)
                 ? new List<Attribute>()
-                : propertyAttrs.Where(x => x.GetType() == attrType).ToList();
+                : propertyAttrs.Where(x => attrType.IsInstanceOf(x.GetType()) ).ToList();
         }
 
         public static object[] AllAttributes(this PropertyInfo propertyInfo)
@@ -1148,7 +1157,7 @@ namespace ServiceStack
         public static object[] AllAttributes(this PropertyInfo propertyInfo, Type attrType)
         {
 #if (NETFX_CORE || PCL)
-            return propertyInfo.GetCustomAttributes(true).Where(x => x.GetType() == attrType).ToArray();
+            return propertyInfo.GetCustomAttributes(true).Where(x => attrType.IsInstanceOf(x.GetType())).ToArray();
 #else
             var attrs = propertyInfo.GetCustomAttributes(attrType, true);
             var runtimeAttrs = propertyInfo.GetAttributes(attrType);
@@ -1190,7 +1199,7 @@ namespace ServiceStack
         public static object[] AllAttributes(this ParameterInfo paramInfo, Type attrType)
         {
 #if (NETFX_CORE || PCL)
-            return paramInfo.GetCustomAttributes(true).Where(x => x.GetType() == attrType).ToArray();
+            return paramInfo.GetCustomAttributes(true).Where(x => attrType.IsInstanceOf(x.GetType())).ToArray();
 #else
             return paramInfo.GetCustomAttributes(attrType, true);
 #endif
@@ -1199,7 +1208,7 @@ namespace ServiceStack
         public static object[] AllAttributes(this MemberInfo memberInfo, Type attrType)
         {
 #if (NETFX_CORE || PCL)
-            return memberInfo.GetCustomAttributes(true).Where(x => x.GetType() == attrType).ToArray();
+            return memberInfo.GetCustomAttributes(true).Where(x => attrType.IsInstanceOf(x.GetType())).ToArray();
 #else
             return memberInfo.GetCustomAttributes(attrType, true);
 #endif
@@ -1208,7 +1217,7 @@ namespace ServiceStack
         public static object[] AllAttributes(this FieldInfo fieldInfo, Type attrType)
         {
 #if (NETFX_CORE || PCL)
-            return fieldInfo.GetCustomAttributes(true).Where(x => x.GetType() == attrType).ToArray();
+            return fieldInfo.GetCustomAttributes(true).Where(x => attrType.IsInstanceOf(x.GetType())).ToArray();
 #else
             return fieldInfo.GetCustomAttributes(attrType, true);
 #endif
@@ -1226,7 +1235,7 @@ namespace ServiceStack
         public static object[] AllAttributes(this Type type, Type attrType)
         {
 #if (NETFX_CORE || PCL)
-            return type.GetTypeInfo().GetCustomAttributes(true).Where(x => x.GetType() == attrType).ToArray();
+            return type.GetTypeInfo().GetCustomAttributes(true).Where(x => attrType.IsInstanceOf(x.GetType())).ToArray();
 #else
             return type.GetCustomAttributes(true).Union(type.GetRuntimeAttributes()).ToArray();
 #endif
@@ -1273,7 +1282,7 @@ namespace ServiceStack
         {
             List<Attribute> attrs;
             return typeAttributesMap.TryGetValue(type, out attrs)
-                ? attrs.Where(x => attrType == null || x.GetType() == attrType)
+                ? attrs.Where(x => attrType == null || attrType.IsInstanceOf(x.GetType()))
                 : new List<Attribute>();
         }
 
@@ -1323,15 +1332,8 @@ namespace ServiceStack
 
         public static Type FirstGenericTypeDefinition(this Type type)
         {
-            while (type != null)
-            {
-                if (type.HasGenericType())
-                    return type.GenericTypeDefinition();
-
-                type = type.BaseType();
-            }
-
-            return null;
+            var genericType = type.FirstGenericType();
+            return genericType != null ? genericType.GetGenericTypeDefinition() : null;
         }
 
         public static bool IsDynamic(this Assembly assembly)

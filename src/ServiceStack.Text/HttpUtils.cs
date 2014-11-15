@@ -201,7 +201,7 @@ namespace ServiceStack
         }
 
         public static Task<string> GetStringFromUrlAsync(this string url, string accept = "*/*",
-     Action<HttpWebRequest> requestFilter = null, Action<HttpWebResponse> responseFilter = null)
+            Action<HttpWebRequest> requestFilter = null, Action<HttpWebResponse> responseFilter = null)
         {
             return SendStringToUrlAsync(url, accept: accept, requestFilter: requestFilter, responseFilter: responseFilter);
         }
@@ -348,8 +348,21 @@ namespace ServiceStack
             }
 
             var taskWebRes = webReq.GetResponseAsync();
-            return taskWebRes.ContinueWith(task =>
+            var tcs = new TaskCompletionSource<string>();
+
+            taskWebRes.ContinueWith(task =>
             {
+                if (task.Exception != null)
+                {
+                    tcs.SetException(task.Exception);
+                    return;
+                }
+                if (task.IsCanceled)
+                {
+                    tcs.SetCanceled();
+                    return;
+                }
+
                 var webRes = task.Result;
                 if (responseFilter != null)
                 {
@@ -359,9 +372,11 @@ namespace ServiceStack
                 using (var stream = webRes.GetResponseStream())
                 using (var reader = new StreamReader(stream))
                 {
-                    return reader.ReadToEnd();
+                    tcs.SetResult(reader.ReadToEnd());
                 }
             });
+
+            return tcs.Task;
         }
 
         public static string SendStringToUrl(this string url, string method = null,
@@ -594,9 +609,11 @@ namespace ServiceStack
             try
             {
                 var webReq = WebRequest.Create(url);
-                var webRes = PclExport.Instance.GetResponse(webReq);
-                var strRes = webRes.ReadToEnd();
-                return null;
+                using (var webRes = PclExport.Instance.GetResponse(webReq))
+                {
+                    var strRes = webRes.ReadToEnd();
+                    return null;
+                }
             }
             catch (WebException webEx)
             {

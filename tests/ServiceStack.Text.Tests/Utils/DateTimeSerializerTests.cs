@@ -355,6 +355,22 @@ namespace ServiceStack.Text.Tests.Utils
         }
 
         [Test]
+        public void Does_parse_as_UTC()
+        {
+            JsConfig.AssumeUtc = true;
+
+            var dateStr = "2014-08-27 14:30:23";
+            var dateTime = dateStr.FromJson<DateTime>();
+
+            Assert.That(dateTime.Kind, Is.EqualTo(DateTimeKind.Utc));
+            Assert.That(dateTime.Hour, Is.EqualTo(14));
+            Assert.That(dateTime.Minute, Is.EqualTo(30));
+            Assert.That(dateTime.Second, Is.EqualTo(23));
+
+            JsConfig.Reset();
+        }
+
+        [Test]
         public void Can_serialize_nullable_DateTime()
         {
             JsConfig.IncludeNullValues = true;
@@ -367,6 +383,15 @@ namespace ServiceStack.Text.Tests.Utils
             Assert.That(dto.ToJson(), Is.EqualTo("{\"DateTime\":\"2013-01-01T00:00:01.0000000Z\",\"NullableDateTime\":\"2013-01-01T00:00:01.0000000Z\"}"));
 
             JsConfig.Reset();
+        }
+
+        [Test]
+        public void Can_deserialize_LocalTime_using_ISO8601()
+        {
+            var date = DateTime.Now;
+            var dateStr = date.ToJson();
+            var fromDate = dateStr.FromJson<DateTime>();
+            Assert.AreEqual(date.ToLocalTime().RoundToSecond(), fromDate.ToLocalTime().RoundToSecond());
         }
     }
 
@@ -420,6 +445,15 @@ namespace ServiceStack.Text.Tests.Utils
                 Assert.AreEqual(DateTimeKind.Utc, TypeSerializer.DeserializeFromString<TestObject>(TypeSerializer.SerializeToString<TestObject>(testObject)).Date.Kind);
             }
         }
+
+        [Test]
+        public void Can_deserialize_LocalTime_using_RFC1123()
+        {
+            var date = DateTime.Now;
+            var dateStr = date.ToJson();
+            var fromDate = dateStr.FromJson<DateTime>();
+            Assert.AreEqual(date.ToLocalTime().RoundToSecond(), fromDate.ToLocalTime().RoundToSecond());
+        }
     }
 
     [TestFixture]
@@ -466,6 +500,15 @@ namespace ServiceStack.Text.Tests.Utils
             var fromJson = json.FromJson<TestObject>();
             var nearestSec = TimeSpan.FromSeconds(1);
             Assert.That(fromJson.Date.RoundToSecond(), Is.EqualTo(dateTime.RoundToSecond()));
+        }
+
+        [Test]
+        public void Can_deserialize_LocalTime_using_UnixTime()
+        {
+            var date = DateTime.Now;
+            var dateStr = date.ToJson();
+            var fromDate = dateStr.FromJson<DateTime>();
+            Assert.AreEqual(date.ToLocalTime().RoundToSecond(), fromDate.ToLocalTime().RoundToSecond());
         }
     }
 
@@ -515,4 +558,17 @@ namespace ServiceStack.Text.Tests.Utils
             Assert.That(fromJson.Date.RoundToMs(), Is.EqualTo(dateTime.RoundToMs()));
         }
     }
+
+    public class DefaultDateTimeests
+    {
+        [Test]
+        public void Can_deserialize_LocalTime_using_default_DateHandler()
+        {
+            var date = DateTime.Now;
+            var dateStr = date.ToJson();
+            var fromDate = dateStr.FromJson<DateTime>();
+            Assert.AreEqual(date.ToLocalTime().RoundToSecond(), fromDate.ToLocalTime().RoundToSecond());
+        }        
+    }
+
 }

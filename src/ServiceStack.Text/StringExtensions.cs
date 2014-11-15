@@ -134,11 +134,12 @@ namespace ServiceStack
                         .Replace(TypeSerializer.DoubleQuoteString, JsWriter.QuoteString);
         }
 
-        public static string UrlEncode(this string text)
+        public static string UrlEncode(this string text, bool upperCase=false)
         {
             if (String.IsNullOrEmpty(text)) return text;
 
             var sb = new StringBuilder();
+            var fmt = upperCase ? "X2" : "x2";
 
             foreach (var charCode in Encoding.UTF8.GetBytes(text))
             {
@@ -158,7 +159,7 @@ namespace ServiceStack
                 }
                 else
                 {
-                    sb.Append('%' + charCode.ToString("x2"));
+                    sb.Append('%' + charCode.ToString(fmt));
                 }
             }
 
@@ -777,6 +778,14 @@ namespace ServiceStack
                 && type.Name.IndexOfAny(SystemTypeChars) == -1;
         }
 
+        public static bool IsUserEnum(this Type type)
+        {
+            return type.IsEnum()
+                && type.Namespace != null
+                && !type.Namespace.StartsWith("System")
+                && type.Name.IndexOfAny(SystemTypeChars) == -1;
+        }
+
         public static bool IsInt(this string text)
         {
             if (String.IsNullOrEmpty(text)) return false;
@@ -839,6 +848,11 @@ namespace ServiceStack
             return decimal.TryParse(text, out ret) ? ret : defaultValue;
         }
 
+        public static bool Matches(this string value, string pattern)
+        {
+            return value.Glob(pattern);
+        }
+
         public static bool Glob(this string value, string pattern)
         {
             int pos;
@@ -894,7 +908,7 @@ namespace ServiceStack
             return PclExport.Instance.GetAsciiBytes(value);
         }
 
-        public static Dictionary<string,string> ParseKeyValueText(this string text, string delimiter=":")
+        public static Dictionary<string,string> ParseKeyValueText(this string text, string delimiter=" ")
         {
             var to = new Dictionary<string, string>();
             if (text == null) return to;
@@ -902,7 +916,7 @@ namespace ServiceStack
             foreach (var parts in text.ReadLines().Select(line => line.SplitOnFirst(delimiter)))
             {
                 var key = parts[0].Trim();
-                if (key.Length == 0) continue;
+                if (key.Length == 0 || key.StartsWith("#")) continue;
                 to[key] = parts.Length == 2 ? parts[1].Trim() : null;
             }
 

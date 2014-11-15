@@ -128,6 +128,14 @@ namespace ServiceStack.Text.Tests
         }
 
         [Test]
+        public void Can_UrlEncode_in_upper_case()
+        {
+            var chars = "/=";
+            Assert.That(chars.UrlEncode(), Is.EqualTo("%2f%3d"));
+            Assert.That(chars.UrlEncode(upperCase:true), Is.EqualTo("%2F%3D"));
+        }
+
+        [Test]
         public void Can_ToCamelCase_String()
         {
             Assert.That("U".ToCamelCase(), Is.EqualTo("u"));
@@ -218,13 +226,13 @@ namespace ServiceStack.Text.Tests
             Assert.That("".ParseKeyValueText().Count, Is.EqualTo(0));
             Assert.That("a".ParseKeyValueText().Count, Is.EqualTo(1));
             Assert.That("a".ParseKeyValueText()["a"], Is.Null);
-            Assert.That("a:".ParseKeyValueText().Count, Is.EqualTo(1));
-            Assert.That("a:".ParseKeyValueText()["a"], Is.EqualTo(""));
-            Assert.That("a:b".ParseKeyValueText()["a"], Is.EqualTo("b"));
-            Assert.That("a:b:c".ParseKeyValueText()["a"], Is.EqualTo("b:c"));
-            Assert.That("a : b:c ".ParseKeyValueText()["a"], Is.EqualTo("b:c"));
-            Assert.That("a:b\nc:d".ParseKeyValueText()["c"], Is.EqualTo("d"));
-            Assert.That("a:b\r\nc:d".ParseKeyValueText()["c"], Is.EqualTo("d"));
+            Assert.That("a ".ParseKeyValueText().Count, Is.EqualTo(1));
+            Assert.That("a ".ParseKeyValueText()["a"], Is.EqualTo(""));
+            Assert.That("a b".ParseKeyValueText()["a"], Is.EqualTo("b"));
+            Assert.That("a b c".ParseKeyValueText()["a"], Is.EqualTo("b c"));
+            Assert.That("a  b c ".ParseKeyValueText()["a"], Is.EqualTo("b c"));
+            Assert.That("a b\nc d".ParseKeyValueText()["c"], Is.EqualTo("d"));
+            Assert.That("a b\r\nc d".ParseKeyValueText()["c"], Is.EqualTo("d"));
         }
 
         [Test]
