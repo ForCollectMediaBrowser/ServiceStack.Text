@@ -7,6 +7,7 @@ namespace ServiceStack.Text.Common
     public interface ITypeSerializer
     {
         bool IncludeNullValues { get; }
+        bool IncludeNullValuesInDictionaries { get; }
         string TypeAttrInObject { get; }
 
         WriteObjectDelegate GetWriteFn<T>();
@@ -32,6 +33,7 @@ namespace ServiceStack.Text.Common
         void WriteBytes(TextWriter writer, object oByteValue);
         void WriteChar(TextWriter writer, object charValue);
         void WriteByte(TextWriter writer, object byteValue);
+        void WriteSByte(TextWriter writer, object sbyteValue);
         void WriteInt16(TextWriter writer, object intValue);
         void WriteUInt16(TextWriter writer, object intValue);
         void WriteInt32(TextWriter writer, object intValue);
@@ -44,7 +46,6 @@ namespace ServiceStack.Text.Common
         void WriteDecimal(TextWriter writer, object decimalValue);
         void WriteEnum(TextWriter writer, object enumValue);
         void WriteEnumFlags(TextWriter writer, object enumFlagValue);
-        void WriteLinqBinary(TextWriter writer, object linqBinaryValue);
 
         //object EncodeMapKey(object value);
 

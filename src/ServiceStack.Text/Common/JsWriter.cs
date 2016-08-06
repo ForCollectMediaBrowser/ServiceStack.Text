@@ -162,14 +162,11 @@ namespace ServiceStack.Text.Common
         public JsWriter()
         {
             this.SpecialTypes = new Dictionary<Type, WriteObjectDelegate>
-        	{
-        		{ typeof(Uri), Serializer.WriteObjectString },
-        		{ typeof(Type), WriteType },
-        		{ typeof(Exception), Serializer.WriteException },
-#if !(__IOS__ || SL5 || XBOX || ANDROID || PCL)
-                { typeof(System.Data.Linq.Binary), Serializer.WriteLinqBinary },
-#endif
-        	};
+            {
+                { typeof(Uri), Serializer.WriteObjectString },
+                { typeof(Type), WriteType },
+                { typeof(Exception), Serializer.WriteException },
+            };
         }
 
         public WriteObjectDelegate GetValueTypeToStringMethod(Type type)
@@ -196,6 +193,8 @@ namespace ServiceStack.Text.Common
 
                 if (typeCode == TypeCode.Byte)
                     return Serializer.WriteByte;
+                if (typeCode == TypeCode.SByte)
+                    return Serializer.WriteSByte;
 
                 if (typeCode == TypeCode.Int16)
                     return Serializer.WriteInt16;
@@ -316,7 +315,7 @@ namespace ServiceStack.Text.Common
                 return specialWriteFn;
             }
 
-            if (typeof(T).IsArray)
+            if (typeof(T).IsArray())
             {
                 if (typeof(T) == typeof(byte[]))
                     return (w, x) => WriteLists.WriteBytes(Serializer, w, x);
@@ -378,7 +377,7 @@ namespace ServiceStack.Text.Common
                 return WriteListsOfElements<TSerializer>.WriteIEnumerable;
             }
 
-            if (typeof(T).HasInterface(typeof (IValueWriter)))
+            if (typeof(T).HasInterface(typeof(IValueWriter)))
                 return WriteValue;
 
             if (typeof(T).IsClass() || typeof(T).IsInterface() || JsConfig.TreatAsRefType(typeof(T)))

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using ServiceStack.Text.Common;
 
 namespace ServiceStack.Text
@@ -9,6 +10,13 @@ namespace ServiceStack.Text
         static CsvConfig()
         {
             Reset();
+        }
+
+        private static CultureInfo sRealNumberCultureInfo;
+        public static CultureInfo RealNumberCultureInfo
+        {
+            get { return sRealNumberCultureInfo ?? CultureInfo.InvariantCulture; }
+            set { sRealNumberCultureInfo = value; }
         }
 
         [ThreadStatic]
@@ -99,7 +107,7 @@ namespace ServiceStack.Text
         {
             get
             {
-                return tsRowSeparatorString ?? sRowSeparatorString ?? Environment.NewLine;
+                return tsRowSeparatorString ?? sRowSeparatorString ?? "\r\n";
             }
             set
             {
@@ -136,6 +144,7 @@ namespace ServiceStack.Text
                 customHeadersMap = value;
                 if (value == null) return;
                 CsvWriter<T>.ConfigureCustomHeaders(customHeadersMap);
+                CsvReader<T>.ConfigureCustomHeaders(customHeadersMap);
             }
         }
 
@@ -156,7 +165,7 @@ namespace ServiceStack.Text
                     var getMethod = pi.GetMethodInfo();
                     if (getMethod == null) continue;
 
-                    var oValue = getMethod.Invoke(value, new object[0]);
+                    var oValue = getMethod.Invoke(value, TypeConstants.EmptyObjectArray);
                     if (oValue == null) continue;
                     customHeadersMap[pi.Name] = oValue.ToString();
                 }

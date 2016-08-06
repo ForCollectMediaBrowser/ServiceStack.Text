@@ -13,19 +13,12 @@ namespace ServiceStack.Text
         internal Func<object, string, object, object> OnDeserializing;
         internal bool IsUserType { get; set; }
 
-        internal void AssertValidUsage()
-        {
-            if (!IsUserType) return;
-
-            LicenseUtils.AssertValidUsage(LicenseFeature.Text, QuotaType.Types, JsConfig.__uniqueTypesCount);
-        }
-
         internal TypeConfig(Type type)
         {
             Type = type;
             EnableAnonymousFieldSetterses = false;
-            Properties = new PropertyInfo[0];
-            Fields = new FieldInfo[0];
+            Properties = TypeConstants.EmptyPropertyInfoArray;
+            Fields = TypeConstants.EmptyFieldInfoArray;
 
             JsConfig.AddUniqueType(Type);
         }
@@ -37,7 +30,7 @@ namespace ServiceStack.Text
 
         static TypeConfig Config
         {
-            get { return config ?? (config = Init()); }
+            get { return config ?? (config = Create()); }
         }
 
         public static PropertyInfo[] Properties
@@ -66,7 +59,15 @@ namespace ServiceStack.Text
 
         static TypeConfig()
         {
-            config = Init();
+            Init();
+        }
+
+        internal static void Init()
+        {
+            if (config == null)
+            {
+                Create();
+            }
         }
 
         public static Func<object, string, object, object> OnDeserializing
@@ -75,11 +76,11 @@ namespace ServiceStack.Text
             set { config.OnDeserializing = value; }
         }
 
-        static TypeConfig Init()
+        static TypeConfig Create()
         {
             config = new TypeConfig(typeof(T));
 
-            var excludedProperties = JsConfig<T>.ExcludePropertyNames ?? new string[0];
+            var excludedProperties = JsConfig<T>.ExcludePropertyNames ?? TypeConstants.EmptyStringArray;
 
             var properties = excludedProperties.Any()
                 ? config.Type.GetSerializableProperties().Where(x => !excludedProperties.Contains(x.Name))
@@ -106,11 +107,6 @@ namespace ServiceStack.Text
         internal static TypeConfig GetState()
         {
             return Config;
-        }
-
-        internal static void AssertValidUsage()
-        {
-            Config.AssertValidUsage();
         }
     }
 }

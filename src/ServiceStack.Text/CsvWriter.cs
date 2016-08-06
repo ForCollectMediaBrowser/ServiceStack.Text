@@ -33,7 +33,7 @@ namespace ServiceStack.Text
             writer.Write(CsvConfig.RowSeparatorString);
         }
 
-        public static void Write(TextWriter writer, IEnumerable<Dictionary<string, object>> records)
+        public static void Write(TextWriter writer, IEnumerable<IDictionary<string, object>> records) 
         {
             if (records == null) return; //AOT
 
@@ -42,14 +42,17 @@ namespace ServiceStack.Text
             {
                 if (requireHeaders)
                 {
-                    WriteRow(writer, record.Keys);
+                    if (record != null)
+                        WriteRow(writer, record.Keys);
+
                     requireHeaders = false;
                 }
-                WriteObjectRow(writer, record.Values);
+                if (record != null) 
+                    WriteObjectRow(writer, record.Values);
             }
         }
 
-        public static void Write(TextWriter writer, IEnumerable<Dictionary<string, string>> records)
+        public static void Write(TextWriter writer, IEnumerable<IDictionary<string, string>> records)
         {
             if (records == null) return; //AOT
 
@@ -134,11 +137,9 @@ namespace ServiceStack.Text
                 var propertyName = propertyInfo.Name;
                 if (isDataContract)
                 {
-                    var dcsDataMember = propertyInfo.GetDataMember();
-                    if (dcsDataMember != null && dcsDataMember.Name != null)
-                    {
-                        propertyName = dcsDataMember.Name;
-                    }
+                    var dcsDataMemberName = propertyInfo.GetDataMemberName();
+                    if (dcsDataMemberName != null)
+                        propertyName = dcsDataMemberName;
                 }
                 Headers.Add(propertyName);
             }
@@ -197,9 +198,8 @@ namespace ServiceStack.Text
                 {
                     var value = propertyGetter(record) ?? "";
 
-                    var strValue = value.GetType() == typeof(string)
-                        ? (string)value
-                        : TypeSerializer.SerializeToString(value);
+                    var valueStr = value as string;
+                    var strValue = valueStr ?? TypeSerializer.SerializeToString(value);
 
                     row.Add(strValue);
                 }
@@ -223,15 +223,22 @@ namespace ServiceStack.Text
         {
             if (writer == null) return; //AOT
 
-            if (typeof(T) == typeof(Dictionary<string, string>))
+            if (typeof(T) == typeof(Dictionary<string, string>) || typeof(T) == typeof(IDictionary<string, string>))
             {
-                CsvDictionaryWriter.Write(writer, (IEnumerable<Dictionary<string, string>>)records);
+                CsvDictionaryWriter.Write(writer, (IEnumerable<IDictionary<string, string>>)records);
                 return;
             }
 
-            if (typeof(T) == typeof(Dictionary<string, object>))
+            if (typeof(T) == typeof(Dictionary<string, object>) || typeof(T) == typeof(IDictionary<string, object>))
             {
-                CsvDictionaryWriter.Write(writer, (IEnumerable<Dictionary<string, object>>)records);
+                CsvDictionaryWriter.Write(writer, (IEnumerable<IDictionary<string, object>>)records);
+                return;
+            }
+
+            if (typeof(T).IsAssignableFromType(typeof(Dictionary<string, object>))) //also does `object`
+            {
+                var dynamicList = records.Select(x => x.ToObjectDictionary()).ToList();
+                CsvDictionaryWriter.Write(writer, dynamicList);
                 return;
             }
 
@@ -270,9 +277,9 @@ namespace ServiceStack.Text
                     var propertyGetter = PropertyGetters[i];
                     var value = propertyGetter(record) ?? "";
 
-                    var strValue = value.GetType() == typeof(string)
+                    var strValue = value is string
                        ? (string)value
-                       : TypeSerializer.SerializeToString(value);
+                       : TypeSerializer.SerializeToString(value).StripQuotes();
 
                     row[i] = strValue;
                 }

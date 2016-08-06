@@ -67,7 +67,9 @@ namespace ServiceStack.Text.Common
                 }
             }
 
-            return Serializer.UnescapeString(strType);
+            return (JsConfig.TryToParsePrimitiveTypeValues
+                ? ParsePrimitive(strType)
+                : null) ?? Serializer.UnescapeString(strType);
         }
 
         public static Type ExtractType(string strType)
@@ -120,7 +122,16 @@ namespace ServiceStack.Text.Common
 
         public static object ParseQuotedPrimitive(string value)
         {
-            if (string.IsNullOrEmpty(value)) return null;
+            var fn = JsConfig.ParsePrimitiveFn;
+            if (fn != null)
+            {
+                var result = fn(value);
+                if (result != null)
+                    return result;
+            }
+
+            if (string.IsNullOrEmpty(value))
+                return null;
 
             Guid guidValue;
             if (Guid.TryParse(value, out guidValue)) return guidValue;
@@ -160,14 +171,24 @@ namespace ServiceStack.Text.Common
 
         public static object ParsePrimitive(string value)
         {
-            if (string.IsNullOrEmpty(value)) return null;
+            var fn = JsConfig.ParsePrimitiveFn;
+            if (fn != null)
+            {
+                var result = fn(value);
+                if (result != null)
+                    return result;
+            }
+
+            if (string.IsNullOrEmpty(value))
+                return null;
 
             bool boolValue;
-            if (bool.TryParse(value, out boolValue)) return boolValue;
+            if (bool.TryParse(value, out boolValue))
+                return boolValue;
 
             // Parse as decimal
             decimal decimalValue;
-            var acceptDecimal = JsConfig.ParsePrimitiveFloatingPointTypes.HasFlag(ParseAsType.Decimal);
+            var acceptDecimal = JsConfig.ParsePrimitiveFloatingPointTypes.Has(ParseAsType.Decimal);
             var isDecimal = decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out decimalValue);
 
             // Check if the number is an Primitive Integer type given that we have a decimal
@@ -175,14 +196,14 @@ namespace ServiceStack.Text.Common
             {
                 // Value is a whole number
                 var parseAs = JsConfig.ParsePrimitiveIntegerTypes;
-                if (parseAs.HasFlag(ParseAsType.Byte) && decimalValue <= byte.MaxValue && decimalValue >= byte.MinValue) return (byte)decimalValue;
-                if (parseAs.HasFlag(ParseAsType.SByte) && decimalValue <= sbyte.MaxValue && decimalValue >= sbyte.MinValue) return (sbyte)decimalValue;
-                if (parseAs.HasFlag(ParseAsType.Int16) && decimalValue <= Int16.MaxValue && decimalValue >= Int16.MinValue) return (Int16)decimalValue;
-                if (parseAs.HasFlag(ParseAsType.UInt16) && decimalValue <= UInt16.MaxValue && decimalValue >= UInt16.MinValue) return (UInt16)decimalValue;
-                if (parseAs.HasFlag(ParseAsType.Int32) && decimalValue <= Int32.MaxValue && decimalValue >= Int32.MinValue) return (Int32)decimalValue;
-                if (parseAs.HasFlag(ParseAsType.UInt32) && decimalValue <= UInt32.MaxValue && decimalValue >= UInt32.MinValue) return (UInt32)decimalValue;
-                if (parseAs.HasFlag(ParseAsType.Int64) && decimalValue <= Int64.MaxValue && decimalValue >= Int64.MinValue) return (Int64)decimalValue;
-                if (parseAs.HasFlag(ParseAsType.UInt64) && decimalValue <= UInt64.MaxValue && decimalValue >= UInt64.MinValue) return (UInt64)decimalValue;
+                if (parseAs.Has(ParseAsType.Byte) && decimalValue <= byte.MaxValue && decimalValue >= byte.MinValue) return (byte)decimalValue;
+                if (parseAs.Has(ParseAsType.SByte) && decimalValue <= sbyte.MaxValue && decimalValue >= sbyte.MinValue) return (sbyte)decimalValue;
+                if (parseAs.Has(ParseAsType.Int16) && decimalValue <= Int16.MaxValue && decimalValue >= Int16.MinValue) return (Int16)decimalValue;
+                if (parseAs.Has(ParseAsType.UInt16) && decimalValue <= UInt16.MaxValue && decimalValue >= UInt16.MinValue) return (UInt16)decimalValue;
+                if (parseAs.Has(ParseAsType.Int32) && decimalValue <= Int32.MaxValue && decimalValue >= Int32.MinValue) return (Int32)decimalValue;
+                if (parseAs.Has(ParseAsType.UInt32) && decimalValue <= UInt32.MaxValue && decimalValue >= UInt32.MinValue) return (UInt32)decimalValue;
+                if (parseAs.Has(ParseAsType.Int64) && decimalValue <= Int64.MaxValue && decimalValue >= Int64.MinValue) return (Int64)decimalValue;
+                if (parseAs.Has(ParseAsType.UInt64) && decimalValue <= UInt64.MaxValue && decimalValue >= UInt64.MinValue) return (UInt64)decimalValue;
                 return decimalValue;
             }
 
@@ -219,8 +240,8 @@ namespace ServiceStack.Text.Common
             if (typeof(TSerializer) == typeof(JsonTypeSerializer))
             {
                 return firstChar == JsWriter.QuoteChar
-                           ? ParseQuotedPrimitive(value)
-                           : ParsePrimitive(value);
+                    ? ParseQuotedPrimitive(value)
+                    : ParsePrimitive(value);
             }
             return (ParsePrimitive(value) ?? ParseQuotedPrimitive(value));
         }
@@ -272,7 +293,7 @@ namespace ServiceStack.Text.Common
 
         private static SetPropertyDelegate GetSetPropertyMethod(TypeConfig typeConfig, PropertyInfo propertyInfo)
         {
-            if (propertyInfo.ReflectedType() != propertyInfo.DeclaringType)
+            if (typeConfig.Type != propertyInfo.DeclaringType)
                 propertyInfo = propertyInfo.DeclaringType.GetPropertyInfo(propertyInfo.Name);
 
             if (!propertyInfo.CanWrite && !typeConfig.EnableAnonymousFieldSetterses) return null;
@@ -324,10 +345,18 @@ namespace ServiceStack.Text.Common
 
         private static SetPropertyDelegate GetSetFieldMethod(TypeConfig typeConfig, FieldInfo fieldInfo)
         {
-            if (fieldInfo.ReflectedType() != fieldInfo.DeclaringType)
+            if (typeConfig.Type != fieldInfo.DeclaringType)
                 fieldInfo = fieldInfo.DeclaringType.GetFieldInfo(fieldInfo.Name);
 
             return PclExport.Instance.GetSetFieldMethod(fieldInfo);
+        }
+    }
+
+    internal static class DeserializeTypeExensions
+    {
+        public static bool Has(this ParseAsType flags, ParseAsType flag)
+        {
+            return (flag & flags) != 0;
         }
     }
 }

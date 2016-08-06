@@ -11,9 +11,12 @@
 //
 
 using System;
+using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime.Serialization;
 using System.Threading;
@@ -593,6 +596,44 @@ namespace ServiceStack
             return ctorFn();
         }
 
+        public static PropertyInfo[] GetAllProperties(this Type type)
+        {
+            if (type.IsInterface())
+            {
+                var propertyInfos = new List<PropertyInfo>();
+
+                var considered = new List<Type>();
+                var queue = new Queue<Type>();
+                considered.Add(type);
+                queue.Enqueue(type);
+
+                while (queue.Count > 0)
+                {
+                    var subType = queue.Dequeue();
+                    foreach (var subInterface in subType.GetTypeInterfaces())
+                    {
+                        if (considered.Contains(subInterface)) continue;
+
+                        considered.Add(subInterface);
+                        queue.Enqueue(subInterface);
+                    }
+
+                    var typeProperties = subType.GetTypesProperties();
+
+                    var newPropertyInfos = typeProperties
+                        .Where(x => !propertyInfos.Contains(x));
+
+                    propertyInfos.InsertRange(0, newPropertyInfos);
+                }
+
+                return propertyInfos.ToArray();
+            }
+
+            return type.GetTypesProperties()
+                .Where(t => t.GetIndexParameters().Length == 0) // ignore indexed properties
+                .ToArray();
+        }
+
         public static PropertyInfo[] GetPublicProperties(this Type type)
         {
             if (type.IsInterface())
@@ -648,18 +689,28 @@ namespace ServiceStack
 
         public static PropertyInfo[] GetSerializableProperties(this Type type)
         {
-            var publicProperties = GetPublicProperties(type);
-            var publicReadableProperties = publicProperties.Where(x => x.PropertyGetMethod() != null);
+            var properties = type.IsDto()
+                ? type.GetAllProperties()
+                : type.GetPublicProperties();
+            return properties.OnlySerializableProperties(type);
+        }
 
-            if (type.IsDto())
+        public static PropertyInfo[] OnlySerializableProperties(this PropertyInfo[] properties, Type type = null)
+        {
+            var isDto = type.IsDto();
+            var readableProperties = properties.Where(x => x.PropertyGetMethod(nonPublic: isDto) != null);
+
+            if (isDto)
             {
-                return publicReadableProperties.Where(attr =>
+                return readableProperties.Where(attr =>
                     attr.HasAttribute<DataMemberAttribute>()).ToArray();
             }
 
             // else return those properties that are not decorated with IgnoreDataMember
-            return publicReadableProperties
-                .Where(prop => prop.AllAttributes().All(attr => {
+            return readableProperties
+                .Where(prop => prop.AllAttributes()
+                    .All(attr =>
+                    {
                         var name = attr.GetType().Name;
                         return !IgnoreAttributesNamed.Contains(name);
                     }))
@@ -680,12 +731,12 @@ namespace ServiceStack
         {
             if (type.IsDto())
             {
-                return type.GetAllFields().Where(attr =>
-                    attr.HasAttribute<DataMemberAttribute>()).ToArray();
+                return type.GetAllFields().Where(f =>
+                    f.HasAttribute<DataMemberAttribute>()).ToArray();
             }
 
             if (!JsConfig.IncludePublicFields)
-                return new FieldInfo[0];
+                return TypeConstants.EmptyFieldInfoArray;
 
             var publicFields = type.GetPublicFields();
 
@@ -727,6 +778,18 @@ namespace ServiceStack
                 return PclExport.Instance.GetWeakDataMember(pi);
 
             return dataMember;
+        }
+
+        public static string GetDataMemberName(this PropertyInfo pi)
+        {
+            var attr = pi.GetDataMember();
+            return attr != null ? attr.Name : null;
+        }
+
+        public static string GetDataMemberName(this FieldInfo fi)
+        {
+            var attr = fi.GetDataMember();
+            return attr != null ? attr.Name : null;
         }
     }
 
@@ -831,14 +894,50 @@ namespace ServiceStack
 #endif
         }
 
+        public static IEnumerable<ConstructorInfo> GetAllConstructors(this Type type)
+        {
+#if (NETFX_CORE || PCL)
+            return type.GetTypeInfo().DeclaredConstructors;
+#else
+            return type.GetConstructors();
+#endif
+        }
+
         internal static PropertyInfo[] GetTypesPublicProperties(this Type subType)
         {
 #if (NETFX_CORE || PCL)
-            return subType.GetRuntimeProperties().ToArray();
+            var pis = new List<PropertyInfo>();
+            foreach (var pi in subType.GetRuntimeProperties())
+            {
+                var mi = pi.GetMethod ?? pi.SetMethod;
+                if (mi != null && mi.IsStatic) continue;
+                pis.Add(pi);
+            }
+            return pis.ToArray();
 #else
             return subType.GetProperties(
                 BindingFlags.FlattenHierarchy |
                 BindingFlags.Public |
+                BindingFlags.Instance);
+#endif
+        }
+
+        internal static PropertyInfo[] GetTypesProperties(this Type subType)
+        {
+#if (NETFX_CORE || PCL)
+            var pis = new List<PropertyInfo>();
+            foreach (var pi in subType.GetRuntimeProperties())
+            {
+                var mi = pi.GetMethod ?? pi.SetMethod;
+                if (mi != null && mi.IsStatic) continue;
+                pis.Add(pi);
+            }
+            return pis.ToArray();
+#else
+            return subType.GetProperties(
+                BindingFlags.FlattenHierarchy |
+                BindingFlags.Public |
+                BindingFlags.NonPublic |
                 BindingFlags.Instance);
 #endif
         }
@@ -866,7 +965,12 @@ namespace ServiceStack
 #if (NETFX_CORE || PCL)
             return type.GetRuntimeFields().ToArray();
 #else
-            return type.GetFields();
+            return type.GetFields(
+                BindingFlags.FlattenHierarchy |
+                BindingFlags.Instance |
+                BindingFlags.Static |
+                BindingFlags.Public |
+                BindingFlags.NonPublic);
 #endif
         }
 
@@ -875,7 +979,12 @@ namespace ServiceStack
 #if (NETFX_CORE || PCL)
             return type.GetRuntimeProperties().ToArray();
 #else
-            return type.GetProperties();
+            return type.GetProperties(
+                BindingFlags.FlattenHierarchy |
+                BindingFlags.Instance |
+                BindingFlags.Static |
+                BindingFlags.Public |
+                BindingFlags.NonPublic);
 #endif
         }
 
@@ -883,13 +992,13 @@ namespace ServiceStack
         {
             if (type.IsInterface())
             {
-                return new FieldInfo[0];
+                return TypeConstants.EmptyFieldInfoArray;
             }
 
 #if (NETFX_CORE || PCL)
             return type.GetRuntimeFields().ToArray();
 #else
-            return type.GetPublicFields();
+            return type.Fields();
 #endif
         }
 
@@ -897,7 +1006,7 @@ namespace ServiceStack
         {
             if (type.IsInterface())
             {
-                return new FieldInfo[0];
+                return TypeConstants.EmptyFieldInfoArray;
             }
 
 #if (NETFX_CORE || PCL)
@@ -1003,6 +1112,9 @@ namespace ServiceStack
         const string DataContract = "DataContractAttribute";
         public static bool IsDto(this Type type)
         {
+            if (type == null)
+                return false;
+
 #if (NETFX_CORE || PCL)
             return type.HasAttribute<DataContractAttribute>();
 #else
@@ -1017,7 +1129,7 @@ namespace ServiceStack
 #if (NETFX_CORE || PCL)
             return pi.GetMethod;
 #else
-            return pi.GetGetMethod(false);
+            return pi.GetGetMethod(nonPublic);
 #endif
         }
 
@@ -1136,7 +1248,7 @@ namespace ServiceStack
             List<Attribute> propertyAttrs;
             return !propertyAttributesMap.TryGetValue(propertyInfo.UniqueKey(), out propertyAttrs)
                 ? new List<Attribute>()
-                : propertyAttrs.Where(x => attrType.IsInstanceOf(x.GetType()) ).ToList();
+                : propertyAttrs.Where(x => attrType.IsInstanceOf(x.GetType())).ToList();
         }
 
         public static object[] AllAttributes(this PropertyInfo propertyInfo)
@@ -1210,6 +1322,10 @@ namespace ServiceStack
 #if (NETFX_CORE || PCL)
             return memberInfo.GetCustomAttributes(true).Where(x => attrType.IsInstanceOf(x.GetType())).ToArray();
 #else
+            var prop = memberInfo as PropertyInfo;
+            if (prop != null)
+                return prop.AllAttributes(attrType);
+
             return memberInfo.GetCustomAttributes(attrType, true);
 #endif
         }
@@ -1338,7 +1454,7 @@ namespace ServiceStack
 
         public static bool IsDynamic(this Assembly assembly)
         {
-#if __IOS__ || WP || NETFX_CORE || PCL
+#if __IOS__ || WP || NETFX_CORE || PCL || DNX451 || DNXCORE50
             return false;
 #else
             try
@@ -1663,6 +1779,246 @@ namespace ServiceStack
 #else
             return Delegate.CreateDelegate(delegateType, target, methodInfo);
 #endif
+        }
+
+        public static Type ElementType(this Type type)
+        {
+#if PCL
+            return type.GetTypeInfo().GetElementType();
+#else
+            return type.GetElementType();
+#endif
+        }
+
+        public static Type GetCollectionType(this Type type)
+        {
+            return type.ElementType() ?? type.GetTypeGenericArguments().FirstOrDefault();
+        }
+
+        static Dictionary<string, Type> GenericTypeCache = new Dictionary<string, Type>();
+
+        public static Type GetCachedGenericType(this Type type, params Type[] argTypes)
+        {
+            if (!type.IsGenericTypeDefinition())
+                throw new ArgumentException(type.FullName + " is not a Generic Type Definition");
+
+            if (argTypes == null)
+                argTypes = TypeConstants.EmptyTypeArray;
+
+            var sb = StringBuilderThreadStatic.Allocate()
+                .Append(type.FullName);
+
+            foreach (var argType in argTypes)
+            {
+                sb.Append('|')
+                  .Append(argType.FullName);
+            }
+
+            var key = StringBuilderThreadStatic.ReturnAndFree(sb);
+
+            Type genericType;
+            if (GenericTypeCache.TryGetValue(key, out genericType))
+                return genericType;
+
+            genericType = type.MakeGenericType(argTypes);
+
+            Dictionary<string, Type> snapshot, newCache;
+            do
+            {
+                snapshot = GenericTypeCache;
+                newCache = new Dictionary<string, Type>(GenericTypeCache);
+                newCache[key] = genericType;
+
+            } while (!ReferenceEquals(
+                Interlocked.CompareExchange(ref GenericTypeCache, newCache, snapshot), snapshot));
+
+            return genericType;
+        }
+
+        private static readonly ConcurrentDictionary<Type, ObjectDictionaryDefinition> toObjectMapCache =
+            new ConcurrentDictionary<Type, ObjectDictionaryDefinition>();
+
+        internal class ObjectDictionaryDefinition
+        {
+            public Type Type;
+            public readonly List<ObjectDictionaryFieldDefinition> Fields = new List<ObjectDictionaryFieldDefinition>();
+            public readonly Dictionary<string, ObjectDictionaryFieldDefinition> FieldsMap = new Dictionary<string, ObjectDictionaryFieldDefinition>();
+
+            public void Add(string name, ObjectDictionaryFieldDefinition fieldDef)
+            {
+                Fields.Add(fieldDef);
+                FieldsMap[name] = fieldDef;
+            }
+        }
+
+        internal class ObjectDictionaryFieldDefinition
+        {
+            public string Name;
+            public Type Type;
+
+            public PropertyGetterDelegate GetValueFn;
+            public PropertySetterDelegate SetValueFn;
+
+            public Type ConvertType;
+            public PropertyGetterDelegate ConvertValueFn;
+
+            public void SetValue(object instance, object value)
+            {
+                if (SetValueFn == null)
+                    return;
+
+                if (!Type.InstanceOfType(value))
+                {
+                    lock (this)
+                    {
+                        //Only caches object converter used on first use
+                        if (ConvertType == null)
+                        {
+                            ConvertType = value.GetType();
+                            ConvertValueFn = TypeConverter.CreateTypeConverter(ConvertType, Type);
+                        }
+                    }
+
+                    if (ConvertType.InstanceOfType(value))
+                    {
+                        value = ConvertValueFn(value);
+                    }
+                    else
+                    {
+                        var tempConvertFn = TypeConverter.CreateTypeConverter(value.GetType(), Type);
+                        value = tempConvertFn(value);
+                    }
+                }
+
+                SetValueFn(instance, value);
+            }
+        }
+
+        public static Dictionary<string, object> ToObjectDictionary(this object obj)
+        {
+            if (obj == null)
+                return null;
+
+            var alreadyDict = obj as Dictionary<string, object>;
+            if (alreadyDict != null)
+                return alreadyDict;
+
+            var interfaceDict = obj as IDictionary<string, object>;
+            if (interfaceDict != null)
+                return new Dictionary<string, object>(interfaceDict);
+
+            var type = obj.GetType();
+
+            ObjectDictionaryDefinition def;
+            if (!toObjectMapCache.TryGetValue(type, out def))
+                toObjectMapCache[type] = def = CreateObjectDictionaryDefinition(type);
+
+            var dict = new Dictionary<string, object>();
+
+            foreach (var fieldDef in def.Fields)
+            {
+                dict[fieldDef.Name] = fieldDef.GetValueFn(obj);
+            }
+
+            return dict;
+        }
+
+        public static object FromObjectDictionary(this Dictionary<string, object> values, Type type)
+        {
+            var alreadyDict = type == typeof(Dictionary<string, object>);
+            if (alreadyDict)
+                return alreadyDict;
+
+            ObjectDictionaryDefinition def;
+            if (!toObjectMapCache.TryGetValue(type, out def))
+                toObjectMapCache[type] = def = CreateObjectDictionaryDefinition(type);
+
+            var to = type.CreateInstance();
+            foreach (var entry in values)
+            {
+                ObjectDictionaryFieldDefinition fieldDef;
+                if (!def.FieldsMap.TryGetValue(entry.Key, out fieldDef) || entry.Value == null)
+                    continue;
+
+                fieldDef.SetValue(to, entry.Value);
+            }
+            return to;
+        }
+
+        public static object FromObjectDictionary<T>(this Dictionary<string, object> values)
+        {
+            return values.FromObjectDictionary(typeof(T));
+        }
+
+        private static ObjectDictionaryDefinition CreateObjectDictionaryDefinition(Type type)
+        {
+            var def = new ObjectDictionaryDefinition
+            {
+                Type = type,
+            };
+
+            foreach (var pi in type.GetSerializableProperties())
+            {
+                def.Add(pi.Name, new ObjectDictionaryFieldDefinition
+                {
+                    Name = pi.Name,
+                    Type = pi.PropertyType,
+                    GetValueFn = pi.GetPropertyGetterFn(),
+                    SetValueFn = pi.GetPropertySetterFn(),
+                });
+            }
+
+            if (JsConfig.IncludePublicFields)
+            {
+                foreach (var fi in type.GetSerializableFields())
+                {
+                    def.Add(fi.Name, new ObjectDictionaryFieldDefinition
+                    {
+                        Name = fi.Name,
+                        Type = fi.FieldType,
+                        GetValueFn = fi.GetFieldGetterFn(),
+                        SetValueFn = fi.GetFieldSetterFn(),
+                    });
+                }
+            }
+            return def;
+        }
+
+        public static Dictionary<string, object> ToSafePartialObjectDictionary<T>(this T instance)
+        {
+            var to = new Dictionary<string, object>();
+            var propValues = instance.ToObjectDictionary();
+            if (propValues != null)
+            {
+                foreach (var entry in propValues)
+                {
+                    var valueType = entry.Value != null 
+                        ? entry.Value.GetType() 
+                        : null;
+
+                    if (valueType == null || !valueType.IsClass() || valueType == typeof(string))
+                    {
+                        to[entry.Key] = entry.Value;
+                    }
+                    else if (!TypeSerializer.HasCircularReferences(entry.Value))
+                    {
+                        var enumerable = entry.Value as IEnumerable;
+                        if (enumerable != null)
+                        {
+                            to[entry.Key] = entry.Value;
+                        }
+                        else
+                        {
+                            to[entry.Key] = entry.Value.ToSafePartialObjectDictionary();
+                        }
+                    }
+                    else
+                    {
+                        to[entry.Key] = entry.Value.ToString();
+                    }
+                }
+            }
+            return to;
         }
     }
 

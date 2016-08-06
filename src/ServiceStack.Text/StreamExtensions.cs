@@ -4,6 +4,9 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Text;
+using ServiceStack.Text;
 
 namespace ServiceStack
 {
@@ -96,7 +99,7 @@ namespace ServiceStack
             }
             // We could do all our own work here, but using MemoryStream is easier
             // and likely to be just as efficient.
-            using (var tempStream = new MemoryStream())
+            using (var tempStream = MemoryStreamFactory.GetStream())
             {
                 CopyTo(input, tempStream, buffer);
                 // No need to copy the buffer if it's the right size
@@ -233,13 +236,53 @@ namespace ServiceStack
                 if (read == 0)
                 {
                     throw new EndOfStreamException
-                        (String.Format("End of stream reached with {0} byte{1} left to read.",
+                        (string.Format("End of stream reached with {0} byte{1} left to read.",
                                        bytesToRead - index,
                                        bytesToRead - index == 1 ? "s" : ""));
                 }
                 index += read;
             }
             return intoBuffer;
+        }
+
+        public static string CollapseWhitespace(this string str)
+        {
+            if (str == null)
+                return null;
+
+            var sb = StringBuilderThreadStatic.Allocate();
+            var lastChar = (char)0;
+            for (var i = 0; i < str.Length; i++)
+            {
+                var c = str[i];
+                if (c < 32) continue; // Skip all these
+                if (c == 32)
+                {
+                    if (lastChar == 32)
+                        continue; // Only write one space character
+                }
+                sb.Append(c);
+                lastChar = c;
+            }
+
+            return StringBuilderThreadStatic.ReturnAndFree(sb);
+        }
+
+        public static byte[] Combine(this byte[] bytes, params byte[][] withBytes)
+        {
+            var combinedLength = bytes.Length + withBytes.Sum(b => b.Length);
+            var to = new byte[combinedLength];
+
+            Buffer.BlockCopy(bytes, 0, to, 0, bytes.Length);
+            var pos = bytes.Length;
+
+            foreach (var b in withBytes)
+            {
+                Buffer.BlockCopy(b, 0, to, pos, b.Length);
+                pos += b.Length;
+            }
+
+            return to;
         }
     }
 }

@@ -10,6 +10,7 @@ using System.Reflection;
 using System.Runtime.Serialization;
 using System.Threading;
 using ServiceStack.Text;
+using ServiceStack.Text.Common;
 
 namespace ServiceStack
 {
@@ -24,14 +25,10 @@ namespace ServiceStack
                 return default(T);
 
             if (from.GetType() == typeof(T))
-            {
                 return (T)from;
-            }
 
-            if (from.GetType().IsValueType())
-            {
-                return (T)Convert.ChangeType(from, typeof(T), provider: null);
-            }
+            if (from.GetType().IsValueType() || typeof(T).IsValueType())
+                return (T)ChangeValueType(from, typeof(T));
 
             if (typeof(IEnumerable).IsAssignableFromType(typeof(T)))
             {
@@ -43,6 +40,84 @@ namespace ServiceStack
 
             var to = typeof(T).CreateInstance<T>();
             return to.PopulateWith(from);
+        }
+
+        public static T CreateCopy<T>(this T from)
+        {
+            if (typeof(T).IsValueType())
+                return (T)ChangeValueType(from, typeof(T));
+
+            if (typeof(IEnumerable).IsAssignableFromType(typeof(T)))
+            {
+                var listResult = TranslateListWithElements.TryTranslateCollections(
+                    from.GetType(), typeof(T), from);
+
+                return (T)listResult;
+            }
+
+            var to = typeof(T).CreateInstance<T>();
+            return to.PopulateWith(from);
+        }
+
+        public static To ThenDo<To>(this To to, Action<To> fn)
+        {
+            fn(to);
+            return to;
+        }
+
+        public static object ConvertTo(this object from, Type type)
+        {
+            if (from == null)
+                return null;
+
+            if (from.GetType() == type)
+                return from;
+
+            if (from.GetType().IsValueType() || type.IsValueType())
+                return ChangeValueType(from, type);
+
+            if (typeof(IEnumerable).IsAssignableFromType(type))
+            {
+                var listResult = TranslateListWithElements.TryTranslateCollections(
+                    from.GetType(), type, from);
+
+                return listResult;
+            }
+
+            var to = type.CreateInstance();
+            return to.PopulateInstance(from);
+        }
+
+        private static object ChangeValueType(object from, Type type)
+        {
+            var strValue = from as string;
+            if (strValue != null)
+                return TypeSerializer.DeserializeFromString(strValue, type);
+
+            if (type == typeof(string))
+                return from.ToJsv();
+
+            return Convert.ChangeType(from, type, provider: null);
+        }
+
+        public static object ChangeTo(this string strValue, Type type)
+        {
+            if (type.IsValueType() && !type.IsEnum()
+#if !PCL
+                && type.HasInterface(typeof(IConvertible))
+#endif
+                )
+            {
+                try
+                {
+                    return Convert.ChangeType(strValue, type, provider: null);
+                }
+                catch (Exception ex)
+                {
+                    Tracer.Instance.WriteError(ex);
+                }
+            }
+            return TypeSerializer.DeserializeFromString(strValue, type);
         }
 
         private static readonly Dictionary<Type, List<string>> TypePropertyNamesMap = new Dictionary<Type, List<string>>();
@@ -266,6 +341,18 @@ namespace ServiceStack
             return to;
         }
 
+        public static object PopulateInstance(this object to, object from)
+        {
+            if (to == null || from == null)
+                return null;
+
+            var assignmentDefinition = GetAssignmentDefinition(to.GetType(), from.GetType());
+
+            assignmentDefinition.PopulateWithNonDefaultValues(to, from);
+
+            return to;
+        }
+
         public static To PopulateWithNonDefaultValues<To, From>(this To to, From from)
         {
             if (Equals(to, default(To)) || Equals(from, default(From))) return default(To);
@@ -322,7 +409,7 @@ namespace ServiceStack
                 return null;
 
             var getMethod = propertyInfo.GetMethodInfo();
-            return getMethod != null ? getMethod.Invoke(obj, new object[0]) : null;
+            return getMethod != null ? getMethod.Invoke(obj, TypeConstants.EmptyObjectArray) : null;
         }
 
         public static void SetValue(FieldInfo fieldInfo, PropertyInfo propertyInfo, object obj, object value)
@@ -420,7 +507,7 @@ namespace ServiceStack
 
                 if (hasEmptyConstructor)
                 {
-                    var value = constructorInfo.Invoke(new object[0]);
+                    var value = constructorInfo.Invoke(TypeConstants.EmptyObjectArray);
 
                     var genericCollectionType = PclExport.Instance.GetGenericCollectionType(type);
                     if (genericCollectionType != null)

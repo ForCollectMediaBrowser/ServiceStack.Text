@@ -348,14 +348,6 @@ namespace ServiceStack.Text.Tests.JsonTests
 					+ typeof(Cat).ToTypeString()
 					+ "\",\"Name\":\"Tigger\"}}";
             try {
-                //var originalPets = new Pets {Cat = new Cat {Name = "Tigger"}, Dog = new Dog {Name = "Fido"}};
-
-                //var newtonsoftSerializer = new Newtonsoft.Json.JsonSerializer { TypeNameHandling = TypeNameHandling.All };
-                //var buffer = new StringBuilder();
-                //using (var writer = new StringWriter(buffer)) {
-                //    newtonsoftSerializer.Serialize(writer, originalPets);
-                //}
-                //var json = buffer.ToString();
                 JsConfig.TypeAttr = "$type";
 		        var deserializedPets = JsonSerializer.DeserializeFromString<Pets>(json);
 
@@ -381,13 +373,6 @@ namespace ServiceStack.Text.Tests.JsonTests
 
             try {
 		        var originalList = new List<Animal> {new Dog {Name = "Fido"}, new Cat {Name = "Tigger"}};
-
-                //var newtonsoftSerializer = new Newtonsoft.Json.JsonSerializer { TypeNameHandling = TypeNameHandling.All };
-                //var buffer = new StringBuilder();
-                //using (var writer = new StringWriter(buffer)) {
-                //    newtonsoftSerializer.Serialize(writer, originalList);
-                //}
-                //var json = buffer.ToString();
 
                 JsConfig.TypeAttr = "$type";
 		        var deserializedList = JsonSerializer.DeserializeFromString<List<Animal>>(json);
@@ -502,5 +487,46 @@ namespace ServiceStack.Text.Tests.JsonTests
 	        Assert.IsAssignableFrom<FooTerm>(terms2.First());
 	    }
 
+	    [Test]
+	    public void Serialize_Polymorphic_collection()
+	    {
+	        var dto = new PolymorphicContainer
+	        {
+	            items = new List<PolymorphicBase>
+	            {
+	                new PolymorphicA { id = 1, fieldA = "testingA" },
+	                new PolymorphicB { id = 2, fieldB = "testingB" },
+	            }
+	        };
+
+	        var json = dto.ToJson();
+
+	        var fromJson = json.FromJson<PolymorphicContainer>();
+            //fromJson.PrintDump();
+
+            Assert.That(fromJson.items.Count, Is.EqualTo(2));
+            Assert.That(((PolymorphicB)fromJson.items[1]).fieldB, Is.EqualTo("testingB"));
+	    }
 	}
+
+    public abstract class PolymorphicBase
+    {
+        public int id { get; set; }
+    }
+
+    public class PolymorphicA : PolymorphicBase
+    {
+        public string fieldA { get; set; }
+    }
+
+    public class PolymorphicB : PolymorphicBase
+    {
+        public string fieldB { get; set; }
+    }
+
+    public class PolymorphicContainer
+    {
+        public List<PolymorphicBase> items { get; set; }
+    }
+
 }

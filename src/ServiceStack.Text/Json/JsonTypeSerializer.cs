@@ -6,6 +6,7 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using ServiceStack.Text.Common;
+using ServiceStack.Text.Pools;
 
 namespace ServiceStack.Text.Json
 {
@@ -17,6 +18,11 @@ namespace ServiceStack.Text.Json
         public bool IncludeNullValues
         {
             get { return JsConfig.IncludeNullValues; }
+        }
+
+        public bool IncludeNullValuesInDictionaries
+        {
+            get { return JsConfig.IncludeNullValuesInDictionaries; }
         }
 
         public string TypeAttrInObject
@@ -42,7 +48,7 @@ namespace ServiceStack.Text.Json
         public WriteObjectDelegate GetWriteFn<T>()
         {
             return JsonWriter<T>.WriteFn();
-		}
+        }
 
         public WriteObjectDelegate GetWriteFn(Type type)
         {
@@ -199,6 +205,14 @@ namespace ServiceStack.Text.Json
                 writer.Write((byte)byteValue);
         }
 
+        public void WriteSByte(TextWriter writer, object sbyteValue)
+        {
+            if (sbyteValue == null)
+                writer.Write(JsonUtils.Null);
+            else
+                writer.Write((sbyte)sbyteValue);
+        }
+
         public void WriteInt16(TextWriter writer, object intValue)
         {
             if (intValue == null)
@@ -304,14 +318,7 @@ namespace ServiceStack.Text.Json
 
         public void WriteEnumFlags(TextWriter writer, object enumFlagValue)
         {
-			JsWriter.WriteEnumFlags(writer, enumFlagValue);
-        }
-
-        public void WriteLinqBinary(TextWriter writer, object linqBinaryValue)
-        {
-#if !(__IOS__ || SL5 || XBOX || ANDROID || PCL)
-            WriteRawString(writer, Convert.ToBase64String(((System.Data.Linq.Binary)linqBinaryValue).ToArray()));
-#endif
+            JsWriter.WriteEnumFlags(writer, enumFlagValue);
         }
 
         public ParseStringDelegate GetParseFn<T>()
@@ -347,7 +354,7 @@ namespace ServiceStack.Text.Json
             if (json[index] != JsonUtils.QuoteChar)
                 throw new Exception("Invalid unquoted string starting with: " + json.SafeSubstring(50));
 
-        	var startIndex = ++index;
+            var startIndex = ++index;
             do
             {
                 char c = json[index];
@@ -419,16 +426,16 @@ namespace ServiceStack.Text.Json
         {
             var length = input.Length;
             int start = 0;
-            int count = 0; 
-            StringBuilder output = new StringBuilder(length);
-            for ( ; count < length; )
+            int count = 0;
+            var output = StringBuilderThreadStatic.Allocate();
+            for (; count < length;)
             {
                 if (input[count] == JsonUtils.QuoteChar)
                 {
                     if (start != count)
                     {
                         output.Append(input, start, count - start);
-                    }                    
+                    }
                     count++;
                     start = count;
                     continue;
@@ -480,9 +487,9 @@ namespace ServiceStack.Text.Json
                         case 'u':
                             if (count + 4 < length)
                             {
-                                var unicodeString = input.Substring(count+1, 4);
+                                var unicodeString = input.Substring(count + 1, 4);
                                 var unicodeIntVal = UInt32.Parse(unicodeString, NumberStyles.HexNumber);
-                                output.Append(JsonTypeSerializer.ConvertFromUtf32((int) unicodeIntVal));
+                                output.Append(ConvertFromUtf32((int)unicodeIntVal));
                                 count += 5;
                             }
                             else
@@ -493,17 +500,17 @@ namespace ServiceStack.Text.Json
                         case 'x':
                             if (count + 4 < length)
                             {
-                                var unicodeString = input.Substring(count+1, 4);
-                                var unicodeIntVal = UInt32.Parse(unicodeString, NumberStyles.HexNumber);
-                                output.Append(JsonTypeSerializer.ConvertFromUtf32((int) unicodeIntVal));
+                                var unicodeString = input.Substring(count + 1, 4);
+                                var unicodeIntVal = uint.Parse(unicodeString, NumberStyles.HexNumber);
+                                output.Append(ConvertFromUtf32((int)unicodeIntVal));
                                 count += 5;
                             }
                             else
                             if (count + 2 < length)
                             {
-                                var unicodeString = input.Substring(count+1, 2);
-                                var unicodeIntVal = UInt32.Parse(unicodeString, NumberStyles.HexNumber);
-                                output.Append(JsonTypeSerializer.ConvertFromUtf32((int) unicodeIntVal));
+                                var unicodeString = input.Substring(count + 1, 2);
+                                var unicodeIntVal = uint.Parse(unicodeString, NumberStyles.HexNumber);
+                                output.Append(ConvertFromUtf32((int)unicodeIntVal));
                                 count += 3;
                             }
                             else
@@ -524,7 +531,7 @@ namespace ServiceStack.Text.Json
                 }
             }
             output.Append(input, start, length - start);
-            return output.ToString();
+            return StringBuilderThreadStatic.ReturnAndFree(output);
         }
 
         /// <summary>
@@ -544,7 +551,7 @@ namespace ServiceStack.Text.Json
                                 (char) (utf32 % 0x0400 + 0xDC00)});
         }
 
-    	public string EatTypeValue(string value, ref int i)
+        public string EatTypeValue(string value, ref int i)
         {
             return EatValue(value, ref i);
         }
@@ -574,7 +581,7 @@ namespace ServiceStack.Text.Json
                 case JsWriter.QuoteChar:
                     return ParseString(value, ref i);
             }
-            
+
             //Is Value
             while (++i < valueLength)
             {
