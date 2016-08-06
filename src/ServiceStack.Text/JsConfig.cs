@@ -17,7 +17,7 @@ namespace ServiceStack.Text
             //In-built default serialization, to Deserialize Color struct do:
             //JsConfig<System.Drawing.Color>.SerializeFn = c => c.ToString().Replace("Color ", "").Replace("[", "").Replace("]", "");
             //JsConfig<System.Drawing.Color>.DeSerializeFn = System.Drawing.Color.FromName;
-            Reset();
+            ResetInternal();
             LicenseUtils.Init();
         }
 
@@ -894,6 +894,11 @@ namespace ServiceStack.Text
         }
 
         public static void Reset()
+        {
+            
+        }
+
+        private static void ResetInternal()
         {
             foreach (var rawSerializeType in HasSerializeFn.ToArray())
             {
